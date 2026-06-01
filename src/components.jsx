@@ -21,7 +21,12 @@ import {
   Plane, 
   Search, 
   Edit2, 
-  Trash2 
+  Trash2,
+  UserPlus,
+  ArrowLeft,
+  Sliders,
+  X,
+  CheckCircle
 } from 'lucide-react';
 
 // Helper to load/save notices and teachers locally (as they do not require MongoDB per scope)
@@ -250,16 +255,57 @@ export function PortalAdmin({ students, refreshStudents }) {
   };
 
   const exportToExcel = () => {
-    const dataToExport = filteredStudents.map(({ id, name, trade, batch, phone, email, status, grade, date }) => ({
-      "Student ID": id,
-      "Name": name,
-      "Trade/Course": trade,
-      "Batch": batch,
-      "Phone": phone,
-      "Email": email,
-      "Status": status,
-      "CBT Grade": grade,
-      "Enrollment Date": date
+    const dataToExport = filteredStudents.map((s) => ({
+      "Student ID": s.id,
+      "Name (English)": s.name || s.nameEnglishBlock || "",
+      "Name (Bangla)": s.nameBangla || "",
+      "Father's Name (English)": s.fatherNameEnglish || "",
+      "Father's Name (Bangla)": s.fatherNameBangla || "",
+      "Mother's Name (English)": s.motherNameEnglish || "",
+      "Mother's Name (Bangla)": s.motherNameBangla || "",
+      "DOB": s.dob || "",
+      "Gender": s.gender || "",
+      "Religion": s.religion || "",
+      "Nationality": s.nationality || "",
+      "Blood Group": s.bloodGroup || "",
+      "NID/BR": s.nidBr || "",
+      
+      // Permanent Address
+      "No.3. Permanent Address": [
+        s.permHoldingNo ? `Holding No: ${s.permHoldingNo}` : '',
+        s.permVillCity ? `Village/City: ${s.permVillCity}` : '',
+        s.permPost ? `Post Office: ${s.permPost}` : '',
+        s.permThana ? `Thana: ${s.permThana}` : '',
+        s.permDistrict ? `District: ${s.permDistrict}` : ''
+      ].filter(Boolean).join(', ') || "",
+
+      // Present Address
+      "No.4. Present Address": [
+        s.presHoldingNo ? `Holding No: ${s.presHoldingNo}` : '',
+        s.presVillCity ? `Village/City: ${s.presVillCity}` : '',
+        s.presPost ? `Post Office: ${s.presPost}` : '',
+        s.presThana ? `Thana: ${s.presThana}` : '',
+        s.presDistrict ? `District: ${s.presDistrict}` : ''
+      ].filter(Boolean).join(', ') || "",
+
+      // Education
+      "Exam Name": s.eduExamName || "",
+      "Division/Class": s.eduDivision || "",
+      "GPA/Marks": s.eduGpa || "",
+      "Passing Year": s.eduPassingYear || "",
+      "Board/University": s.eduBoardUniv || "",
+
+      // Experience
+      "Exp. Organization": s.expName || "",
+      "Exp. Designation": s.expDesignation || "",
+      "Exp. Responsibilities": s.expResponsibility || "",
+      "Exp. Duration": s.expTimePeriod || "",
+
+      "Trade/Course": s.trade || "",
+      "Batch": s.batch || "",
+      "Status": s.status || "",
+      "CBT Grade": s.grade || "",
+      "Enrollment Date": s.date || ""
     }));
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
     const workbook = XLSX.utils.book_new();
@@ -267,33 +313,95 @@ export function PortalAdmin({ students, refreshStudents }) {
     XLSX.writeFile(workbook, "PTTC_Students_Report.xlsx");
   };
 
-  const exportToPDF = () => {
-    const doc = new jsPDF();
-    doc.setFont("Helvetica");
-    doc.setFontSize(18);
-    doc.text("Paikgacha Technical Training Center (PTTC)", 14, 20);
-    doc.setFontSize(12);
-    doc.text("Student Enrollment & Assessment Report", 14, 28);
-    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 34);
-    doc.line(14, 38, 196, 38);
+  const fetchAndAddBengaliFont = async (doc) => {
+    try {
+      const fontUrl = 'https://fonts.gstatic.com/s/hindsiliguri/v12/ijwTs5OBP757rS-K9v29y2Ve_M9v7A.ttf';
+      const response = await fetch(fontUrl);
+      const arrayBuffer = await response.arrayBuffer();
+      let binary = '';
+      const bytes = new Uint8Array(arrayBuffer);
+      const len = bytes.byteLength;
+      for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const base64Font = window.btoa(binary);
+      doc.addFileToVFS('HindSiliguri.ttf', base64Font);
+      doc.addFont('HindSiliguri.ttf', 'HindSiliguri', 'normal');
+      return true;
+    } catch (err) {
+      console.error('Failed to load Bengali font:', err);
+      return false;
+    }
+  };
 
-    let y = 45;
+  const exportToPDF = async () => {
+    const doc = new jsPDF();
+    const hasBengali = await fetchAndAddBengaliFont(doc);
+    if (hasBengali) {
+      doc.setFont("HindSiliguri", "normal");
+    } else {
+      doc.setFont("Helvetica");
+    }
+    doc.setFontSize(16);
+    doc.text("Paikgacha Technical Training Center (PTTC)", 14, 20);
+    doc.setFontSize(11);
+    doc.text("Student Detailed Enrollment Report", 14, 27);
+    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 33);
+    doc.line(14, 36, 196, 36);
+
+    let y = 43;
     filteredStudents.forEach((s, index) => {
-      if (y > 270) {
+      if (y > 220) {
         doc.addPage();
         y = 20;
       }
       doc.setFontSize(10);
-      doc.setFont("Helvetica", "bold");
-      doc.text(`${index + 1}. ${s.name} (${s.id})`, 14, y);
-      doc.setFont("Helvetica", "normal");
-      doc.text(`Trade: ${s.trade} | Batch: ${s.batch} | Status: ${s.status}`, 14, y + 5);
-      doc.text(`Contact: ${s.phone} | Email: ${s.email}`, 14, y + 10);
-      doc.line(14, y + 13, 196, y + 13);
-      y += 18;
+      if (hasBengali) {
+        doc.setFont("HindSiliguri", "normal");
+      } else {
+        doc.setFont("Helvetica", "bold");
+      }
+      doc.text(`${index + 1}. ${s.name || s.nameEnglishBlock || 'N/A'} (${s.id})`, 14, y);
+      
+      if (hasBengali) {
+        doc.setFont("HindSiliguri", "normal");
+      } else {
+        doc.setFont("Helvetica", "normal");
+      }
+      doc.setFontSize(8.5);
+      
+      doc.text(`Trade: ${s.trade} | Batch: ${s.batch} | Date: ${s.date} | Status: ${s.status}`, 14, y + 4.5);
+      doc.text(`Bangla Name: ${s.nameBangla || 'N/A'} | NID/BR: ${s.nidBr || 'N/A'} | DOB: ${s.dob || 'N/A'} | Blood: ${s.bloodGroup || 'N/A'}`, 14, y + 8.5);
+      doc.text(`Father's Name: ${s.fatherNameEnglish || 'N/A'} | Mother's Name: ${s.motherNameEnglish || 'N/A'}`, 14, y + 12.5);
+
+      if (hasBengali) {
+        doc.setFont("HindSiliguri", "normal");
+      } else {
+        doc.setFont("Helvetica", "bold");
+      }
+      doc.text(`No.3. Permanent Address:`, 14, y + 17.5);
+      doc.text(`No.4. Present Address:`, 105, y + 17.5);
+      
+      if (hasBengali) {
+        doc.setFont("HindSiliguri", "normal");
+      } else {
+        doc.setFont("Helvetica", "normal");
+      }
+      doc.text(`Holding: ${s.permHoldingNo || 'N/A'}, ${s.permVillCity || 'N/A'}, Post: ${s.permPost || 'N/A'}, Thana: ${s.permThana || 'N/A'}, Dist: ${s.permDistrict || 'N/A'}`, 14, y + 21.5, { maxWidth: 85 });
+      doc.text(`Holding: ${s.presHoldingNo || 'N/A'}, ${s.presVillCity || 'N/A'}, Post: ${s.presPost || 'N/A'}, Thana: ${s.presThana || 'N/A'}, Dist: ${s.presDistrict || 'N/A'}`, 105, y + 21.5, { maxWidth: 85 });
+
+      doc.text(`Education: ${s.eduExamName || 'N/A'} - GPA: ${s.eduGpa || 'N/A'} (${s.eduPassingYear || 'N/A'} - ${s.eduBoardUniv || 'N/A'})`, 14, y + 31.5);
+      if (s.expName) {
+        doc.text(`Experience: ${s.expName} - ${s.expDesignation} (${s.expTimePeriod})`, 14, y + 35.5);
+        doc.line(14, y + 39, 196, y + 39);
+        y += 44;
+      } else {
+        doc.line(14, y + 35, 196, y + 35);
+        y += 40;
+      }
     });
 
-    doc.save("PTTC_Students_Report.pdf");
+    doc.save("PTTC_Detailed_Students_Report.pdf");
   };
 
   const filteredStudents = students.filter(s => {
@@ -449,32 +557,9 @@ export function PortalAdmin({ students, refreshStudents }) {
 
       {/* STUDENTS REGISTRY TAB VIEW */}
       {activeTab === 'students' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Register student sidebar */}
-          <div className="lg:col-span-1">
-            <div className="glass-panel p-6 rounded-2xl">
-              <h3 className="text-lg font-bold mb-4">Register Student</h3>
-              <form onSubmit={handleAddStudent} className="space-y-3">
-                <input name="name" type="text" placeholder="Full Name" required className="w-full px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border text-sm text-slate-850 dark:text-white" />
-                <select name="trade" required className="w-full px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-850 border text-sm text-slate-850 dark:text-white">
-                  <option value="IT Support">IT Support & IoT</option>
-                  <option value="Graphic Design">Graphic Design & UI/UX</option>
-                  <option value="Automotive Mechanics">Automotive Mechanics</option>
-                  <option value="Electrical Installation">Electrical Installation</option>
-                  <option value="Sewing Machine Operation">Sewing Machine Operation</option>
-                </select>
-                <input name="batch" type="text" placeholder="Batch Number" required className="w-full px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border text-sm text-slate-850 dark:text-white" />
-                <input name="phone" type="text" placeholder="Phone Number" required className="w-full px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border text-sm text-slate-850 dark:text-white" />
-                <input name="email" type="email" placeholder="Email Address" required className="w-full px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border text-sm text-slate-850 dark:text-white" />
-                <button type="submit" className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm transition">
-                  Register Student Record
-                </button>
-              </form>
-            </div>
-          </div>
-
+        <div className="space-y-6 animate-fadeIn">
           {/* Student registry list */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="w-full space-y-6">
             <div className="glass-panel p-6 rounded-2xl">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                 <h3 className="text-xl font-bold">Registry Directory</h3>
@@ -507,7 +592,10 @@ export function PortalAdmin({ students, refreshStudents }) {
                 <table className="w-full text-left text-sm">
                   <thead>
                     <tr className="border-b text-slate-400 text-xs">
+                      <th className="pb-3">Sl No</th>
+                      <th className="pb-3">Photo</th>
                       <th className="pb-3">Student Info</th>
+                      <th className="pb-3">NID/BR</th>
                       <th className="pb-3">Trade</th>
                       <th className="pb-3">Batch</th>
                       <th className="pb-3">Status</th>
@@ -515,19 +603,30 @@ export function PortalAdmin({ students, refreshStudents }) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
-                    {filteredStudents.map(s => (
+                    {filteredStudents.map((s, idx) => (
                       <tr key={s.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/10">
+                        <td className="py-3 text-xs font-bold text-slate-450">{idx + 1}</td>
+                        <td className="py-3">
+                          <div className="w-10 h-10 rounded-lg overflow-hidden border bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                            {s.photo ? (
+                              <img src={s.photo} alt={s.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="text-[10px] font-bold text-slate-400">{s.name ? s.name[0] : 'S'}</div>
+                            )}
+                          </div>
+                        </td>
                         <td className="py-3">
                           <div className="font-semibold text-slate-800 dark:text-slate-200">{s.name}</div>
                           <div className="text-xs text-slate-400">{s.id} | {s.phone}</div>
                         </td>
+                        <td className="py-3 text-xs">{s.nidBr || 'N/A'}</td>
                         <td className="py-3 text-xs">{s.trade}</td>
                         <td className="py-3 text-xs">{s.batch}</td>
                         <td className="py-3">
                           <select 
                             value={s.status} 
                             onChange={(e) => handleStatusChange(s.id, e.target.value)}
-                            className="px-2 py-0.5 text-xs bg-slate-100 dark:bg-slate-850 border rounded font-semibold text-slate-700 dark:text-slate-200"
+                            className="px-2 py-0.5 text-xs bg-slate-100 dark:bg-slate-855 border rounded font-semibold text-slate-700 dark:text-slate-200"
                           >
                             <option value="Pending">Pending</option>
                             <option value="Approved">Approved</option>
@@ -707,7 +806,7 @@ export function PortalAdmin({ students, refreshStudents }) {
 // TEACHERS PORTAL
 // -------------------------------------------------------------
 export function PortalTeacher({ students, refreshStudents }) {
-  const [selectedBatch, setSelectedBatch] = useState('Batch-45');
+  const [selectedBatch, setSelectedBatch] = useState('Batch-01');
   const [gradingStudent, setGradingStudent] = useState(null);
   const [gradeValue, setGradeValue] = useState('Competent');
 
@@ -746,9 +845,15 @@ export function PortalTeacher({ students, refreshStudents }) {
             onChange={(e) => setSelectedBatch(e.target.value)}
             className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-medium"
           >
-            <option value="Batch-44">Batch 44</option>
-            <option value="Batch-45">Batch 45</option>
-            <option value="Batch-46">Batch 46</option>
+            {Array.from({ length: 100 }, (_, i) => {
+              const num = String(i + 1).padStart(2, '0');
+              const val = `Batch-${num}`;
+              return (
+                <option key={val} value={val}>
+                  Batch {num}
+                </option>
+              );
+            })}
           </select>
         </div>
       </div>
@@ -833,7 +938,7 @@ export function PortalStudent({ students }) {
   }, [searchId, students]);
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 animate-fadeIn">
+    <div className="max-w-4xl mx-auto space-y-6 animate-fadeIn">
       <div className="glass-panel p-6 rounded-2xl">
         <h2 className="text-xl font-bold mb-4">Student Profile Registry</h2>
         <div className="flex gap-2">
@@ -848,34 +953,126 @@ export function PortalStudent({ students }) {
       </div>
 
       {profile ? (
-        <div className="glass-panel p-6 rounded-2xl border border-teal-500/20 shadow-lg relative overflow-hidden">
-          <div className="absolute right-0 top-0 w-32 h-32 bg-teal-500/5 rounded-full blur-2xl"></div>
-          <div className="flex flex-col md:flex-row gap-6 items-center">
-            <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-teal-500 to-sky-600 text-white flex items-center justify-center font-bold text-3xl">
-              {profile.name[0]}
+        <div className="glass-panel p-8 rounded-2xl border border-teal-500/20 shadow-lg relative overflow-hidden space-y-8">
+          <div className="absolute right-0 top-0 w-48 h-48 bg-teal-500/5 rounded-full blur-3xl"></div>
+          
+          {/* Header Info */}
+          <div className="flex flex-col md:flex-row gap-6 items-center justify-between border-b border-slate-100 dark:border-slate-850 pb-6">
+            <div className="flex flex-col md:flex-row gap-6 items-center">
+              <div className="w-24 h-24 rounded-2xl overflow-hidden border bg-slate-200 flex items-center justify-center">
+                {profile.photo ? (
+                  <img src={profile.photo} alt={profile.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="font-bold text-3xl text-slate-400">{profile.name[0]}</div>
+                )}
+              </div>
+              <div className="space-y-1.5 text-center md:text-left">
+                <div className="text-xs text-teal-600 font-bold uppercase tracking-wider">{profile.trade}</div>
+                <h3 className="text-2xl font-extrabold uppercase">{profile.nameEnglishBlock || profile.name}</h3>
+                <p className="text-sm text-slate-400 font-semibold">Student ID: {profile.id} | Batch: {profile.batch}</p>
+              </div>
             </div>
-            <div className="flex-1 space-y-2">
-              <div className="text-xs text-teal-600 font-bold uppercase tracking-wider">{profile.trade}</div>
-              <h3 className="text-2xl font-bold">{profile.name}</h3>
-              <div className="grid grid-cols-2 gap-4 text-sm mt-4 text-slate-600 dark:text-slate-400">
-                <div><strong>Student ID:</strong> {profile.id}</div>
-                <div><strong>Batch:</strong> {profile.batch}</div>
-                <div><strong>Email:</strong> {profile.email}</div>
-                <div><strong>Phone:</strong> {profile.phone}</div>
-                <div><strong>Enrollment Date:</strong> {profile.date}</div>
-                <div><strong>CBT Assessment:</strong> <span className="font-bold text-teal-600">{profile.grade}</span></div>
-              </div>
-
-              <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-850 flex items-center gap-2">
-                <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                  profile.status === 'Approved' ? 'bg-emerald-100 text-emerald-800' :
-                  profile.status === 'Pending' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'
-                }`}>
-                  Portal Status: {profile.status}
-                </span>
-              </div>
+            
+            <div className="flex flex-col items-center gap-2">
+              <span className={`px-4 py-1.5 rounded-full text-xs font-bold ${
+                profile.status === 'Approved' ? 'bg-emerald-100 text-emerald-800' :
+                profile.status === 'Pending' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'
+              }`}>
+                Portal Status: {profile.status}
+              </span>
+              {profile.signature && (
+                <div className="w-32 h-10 border bg-white dark:bg-slate-900 rounded p-1 flex items-center justify-center">
+                  <img src={profile.signature} alt="Signature" className="w-full h-full object-contain" />
+                </div>
+              )}
             </div>
           </div>
+
+          {/* Details Sections Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+            
+            {/* Section 1: Personal Details */}
+            <div className="space-y-3 p-4 bg-slate-100/50 dark:bg-slate-900/20 rounded-2xl border">
+              <h4 className="font-bold text-teal-600 border-b pb-1">Personal Details</h4>
+              <div className="space-y-2">
+                <div><strong className="text-slate-400">Name (Bangla):</strong> {profile.nameBangla || 'N/A'}</div>
+                <div><strong className="text-slate-400">Father's Name:</strong> {profile.fatherNameEnglish || 'N/A'} ({profile.fatherNameBangla || 'N/A'})</div>
+                <div><strong className="text-slate-400">Mother's Name:</strong> {profile.motherNameEnglish || 'N/A'} ({profile.motherNameBangla || 'N/A'})</div>
+                <div><strong className="text-slate-400">DOB:</strong> {profile.dob || 'N/A'}</div>
+                <div><strong className="text-slate-400">Gender:</strong> {profile.gender || 'N/A'}</div>
+                <div><strong className="text-slate-400">Religion:</strong> {profile.religion || 'N/A'}</div>
+                <div><strong className="text-slate-400">Nationality:</strong> {profile.nationality || 'N/A'}</div>
+                <div><strong className="text-slate-400">Blood Group:</strong> {profile.bloodGroup || 'N/A'}</div>
+                <div><strong className="text-slate-400">NID / BR No:</strong> {profile.nidBr || 'N/A'}</div>
+              </div>
+            </div>
+
+            {/* Section 2: Addresses */}
+            <div className="space-y-4">
+              
+              {/* Permanent Address */}
+              <div className="space-y-2 p-4 bg-slate-100/50 dark:bg-slate-900/20 rounded-2xl border">
+                <h4 className="font-bold text-teal-600 border-b pb-1">Permanent Address</h4>
+                <div className="space-y-1">
+                  <div><strong className="text-slate-400">Holding No:</strong> {profile.permHoldingNo || 'N/A'}</div>
+                  <div><strong className="text-slate-400">Village/City:</strong> {profile.permVillCity || 'N/A'}</div>
+                  <div><strong className="text-slate-400">Post, Thana:</strong> {profile.permPost || 'N/A'}, {profile.permThana || 'N/A'}</div>
+                  <div><strong className="text-slate-400">District:</strong> {profile.permDistrict || 'N/A'}</div>
+                </div>
+              </div>
+
+              {/* Present Address */}
+              <div className="space-y-2 p-4 bg-slate-100/50 dark:bg-slate-900/20 rounded-2xl border">
+                <h4 className="font-bold text-teal-600 border-b pb-1">Present Address</h4>
+                <div className="space-y-1">
+                  <div><strong className="text-slate-400">Holding No:</strong> {profile.presHoldingNo || 'N/A'}</div>
+                  <div><strong className="text-slate-400">Village/City:</strong> {profile.presVillCity || 'N/A'}</div>
+                  <div><strong className="text-slate-400">Post, Thana:</strong> {profile.presPost || 'N/A'}, {profile.presThana || 'N/A'}</div>
+                  <div><strong className="text-slate-400">District:</strong> {profile.presDistrict || 'N/A'}</div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Section 3: Educational Qualifications */}
+            <div className="space-y-3 p-4 bg-slate-100/50 dark:bg-slate-900/20 rounded-2xl border">
+              <h4 className="font-bold text-teal-600 border-b pb-1">Education Background</h4>
+              {profile.eduExamName ? (
+                <div className="space-y-2">
+                  <div><strong className="text-slate-400">Examination:</strong> {profile.eduExamName}</div>
+                  <div><strong className="text-slate-400">Division/Class:</strong> {profile.eduDivision}</div>
+                  <div><strong className="text-slate-400">GPA / Score:</strong> {profile.eduGpa}</div>
+                  <div><strong className="text-slate-400">Passing Year:</strong> {profile.eduPassingYear}</div>
+                  <div><strong className="text-slate-400">Board / Varsity:</strong> {profile.eduBoardUniv}</div>
+                </div>
+              ) : (
+                <div className="text-slate-400 italic">No record found.</div>
+              )}
+            </div>
+
+            {/* Section 4: Experiences */}
+            <div className="space-y-3 p-4 bg-slate-100/50 dark:bg-slate-900/20 rounded-2xl border">
+              <h4 className="font-bold text-teal-600 border-b pb-1">Professional Experience</h4>
+              {profile.expName ? (
+                <div className="space-y-2">
+                  <div><strong className="text-slate-400">Organization:</strong> {profile.expName}</div>
+                  <div><strong className="text-slate-400">Designation:</strong> {profile.expDesignation}</div>
+                  <div><strong className="text-slate-400">Responsibilities:</strong> {profile.expResponsibility}</div>
+                  <div><strong className="text-slate-400">Duration:</strong> {profile.expTimePeriod}</div>
+                </div>
+              ) : (
+                <div className="text-slate-400 italic">No past work experience recorded.</div>
+              )}
+            </div>
+
+            {/* Registry Meta */}
+            <div className="md:col-span-2 p-4 bg-teal-500/5 rounded-2xl border border-teal-500/10 flex justify-between items-center text-xs">
+              <div><strong>Enrollment Date:</strong> {profile.date}</div>
+              <div><strong>CBT Competency Grade:</strong> <span className="font-bold text-teal-650 dark:text-teal-400">{profile.grade}</span></div>
+            </div>
+
+          </div>
+
         </div>
       ) : (
         <div className="glass-panel p-6 rounded-2xl text-center py-12 text-slate-400">
@@ -1332,111 +1529,1150 @@ export function AboutUs() {
   );
 }
 
-// 7. Enrollment Registration Section
 export function Enrollment({ students, refreshStudents }) {
+  const [viewMode, setViewMode] = useState('menu'); // menu | apply | query
+  const [step, setStep] = useState(1);
+  const [formData, setFormData] = useState({
+    trade: 'IT Support',
+    batch: 'Batch-01',
+    name: '',
+    nameBangla: '',
+    nameEnglishBlock: '',
+    fatherNameEnglish: '',
+    fatherNameBangla: '',
+    motherNameEnglish: '',
+    motherNameBangla: '',
+    dob: '',
+    gender: 'Male',
+    religion: 'Islam',
+    nationality: 'Bangladeshi',
+    bloodGroup: 'O+',
+    nidBr: '',
+    
+    // Permanent Address
+    permHoldingNo: '',
+    permVillCity: '',
+    permPost: '',
+    permThana: '',
+    permDistrict: '',
+
+    // Same Address Flag
+    sameAddress: false,
+
+    // Present Address
+    presHoldingNo: '',
+    presVillCity: '',
+    presPost: '',
+    presThana: '',
+    presDistrict: '',
+
+    // Education
+    eduExamName: 'SSC',
+    eduDivision: '1st',
+    eduGpa: '',
+    eduPassingYear: '',
+    eduBoardUniv: '',
+
+    // Experience (Optional)
+    expName: '',
+    expDesignation: '',
+    expResponsibility: '',
+    expTimePeriod: '',
+
+    // Appearances
+    photo: '',
+    signature: ''
+  });
+
   const [appId, setAppId] = useState('');
   const [successMsg, setSuccessMsg] = useState(null);
+  const [photoError, setPhotoError] = useState('');
+  const [sigError, setSigError] = useState('');
+  const [toast, setToast] = useState(null);
+
+  // Auto-dismiss toast after 5 seconds
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => {
+        setToast(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
+  // Handle inputs change
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    let val = type === 'checkbox' ? checked : value;
+    
+    // Restrict Bangla fields to Bangla Unicode characters, spaces, ZWJ (\u200D), and ZWNJ (\u200C)
+    if (['nameBangla', 'fatherNameBangla', 'motherNameBangla'].includes(name) && typeof val === 'string') {
+      val = val.replace(/[^ \u0980-\u09FF\u200C\u200D]/g, '');
+    }
+    
+    // Restrict NID/BR field to numbers only
+    if (name === 'nidBr' && typeof val === 'string') {
+      val = val.replace(/[^0-9]/g, '');
+    }
+    
+    setFormData(prev => {
+      const updated = { ...prev, [name]: val };
+      
+      // If same address is checked, copy perm to pres
+      if (name === 'sameAddress' && val) {
+        updated.presHoldingNo = prev.permHoldingNo;
+        updated.presVillCity = prev.permVillCity;
+        updated.presPost = prev.permPost;
+        updated.presThana = prev.permThana;
+        updated.presDistrict = prev.permDistrict;
+      } else if (prev.sameAddress && name.startsWith('perm')) {
+        const presKey = name.replace('perm', 'pres');
+        updated[presKey] = val;
+      }
+      
+      // If user typed nameEnglishBlock, sync to name for main registry compatibility
+      if (name === 'nameEnglishBlock') {
+        updated.name = val;
+      }
+      return updated;
+    });
+  };
+
+  // Handle file uploads with base64 conversion
+  const handleFileChange = (e, type) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      if (type === 'photo') setPhotoError('Please upload a valid image file.');
+      else setSigError('Please upload a valid image file.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        if (type === 'photo') {
+          if (img.width !== 300 || img.height !== 300) {
+            setPhotoError(`Image is ${img.width}x${img.height}. Requirements specify exactly 300x300.`);
+          } else {
+            setPhotoError('');
+          }
+          setFormData(prev => ({ ...prev, photo: event.target.result }));
+        } else {
+          if (img.width !== 300 || img.height !== 80) {
+            setSigError(`Image is ${img.width}x${img.height}. Requirements specify exactly 300x80.`);
+          } else {
+            setSigError('');
+          }
+          setFormData(prev => ({ ...prev, signature: event.target.result }));
+        }
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleNext = () => {
+    // Simple page validation
+    if (step === 1) {
+      if (!formData.trade || !formData.batch || !formData.nameEnglishBlock || !formData.nameBangla || !formData.fatherNameEnglish || !formData.motherNameEnglish || !formData.dob) {
+        alert('Please fill out all mandatory fields in Institutional and Personal Information.');
+        return;
+      }
+    } else if (step === 2) {
+      if (!formData.permHoldingNo || !formData.permVillCity || !formData.permPost || !formData.permThana || !formData.permDistrict ||
+          !formData.presHoldingNo || !formData.presVillCity || !formData.presPost || !formData.presThana || !formData.presDistrict) {
+        alert('Please complete both Permanent and Present Address sections.');
+        return;
+      }
+    } else if (step === 3) {
+      if (!formData.eduExamName || !formData.eduDivision || !formData.eduGpa || !formData.eduPassingYear || !formData.eduBoardUniv) {
+        alert('Please complete all Educational Qualification fields.');
+        return;
+      }
+    }
+    setStep(prev => prev + 1);
+  };
+
+  const handleBack = () => {
+    setStep(prev => prev - 1);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const fd = new FormData(e.target);
+    if (!formData.photo || !formData.signature) {
+      alert('Please upload both your Photo and Signature.');
+      return;
+    }
+    
     const id = `STU${Date.now().toString().slice(-4)}`;
     try {
       const res = await fetch('/api/students', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          ...formData,
           id,
-          name: fd.get('name'),
-          trade: fd.get('trade'),
-          batch: "Batch-46",
-          phone: fd.get('phone'),
-          email: fd.get('email'),
+          phone: formData.phone || formData.nidBr || id, // fallback
+          email: formData.email || `${id.toLowerCase()}@pttc.edu`, // fallback
           status: "Pending",
           grade: "N/A"
         })
       });
       if (res.ok) {
+        alert('You have successfully submitted your info');
         setSuccessMsg(id);
+        setToast({ message: `Application Submitted Successfully! Your generated Application ID is ${id}.`, type: 'success' });
         refreshStudents();
-        e.target.reset();
+        // Reset Form
+        setFormData({
+          trade: 'IT Support',
+          batch: 'Batch-01',
+          name: '',
+          nameBangla: '',
+          nameEnglishBlock: '',
+          fatherNameEnglish: '',
+          fatherNameBangla: '',
+          motherNameEnglish: '',
+          motherNameBangla: '',
+          dob: '',
+          gender: 'Male',
+          religion: 'Islam',
+          nationality: 'Bangladeshi',
+          bloodGroup: 'O+',
+          nidBr: '',
+          permHoldingNo: '',
+          permVillCity: '',
+          permPost: '',
+          permThana: '',
+          permDistrict: '',
+          sameAddress: false,
+          presHoldingNo: '',
+          presVillCity: '',
+          presPost: '',
+          presThana: '',
+          presDistrict: '',
+          eduExamName: 'SSC',
+          eduDivision: '1st',
+          eduGpa: '',
+          eduPassingYear: '',
+          eduBoardUniv: '',
+          expName: '',
+          expDesignation: '',
+          expResponsibility: '',
+          expTimePeriod: '',
+          photo: '',
+          signature: ''
+        });
+        setStep(1);
+      } else {
+        alert('Failed to submit application. Please try again.');
       }
     } catch (err) {
       console.error('Error submitting application form:', err);
+      alert('Failed to submit application. Please try again.');
     }
   };
 
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fadeIn">
-      <div className="lg:col-span-2 glass-panel p-6 rounded-2xl">
-        <h3 className="text-xl font-bold mb-4">Online Admission Application Form</h3>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-bold block mb-1">Full Name</label>
-              <input type="text" name="name" required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-slate-800 dark:text-white" />
+  if (viewMode === 'menu') {
+    return (
+      <div className="max-w-4xl mx-auto space-y-10 py-8 animate-fadeIn">
+        <div className="text-center max-w-xl mx-auto space-y-3">
+          <span className="px-3 py-1 bg-teal-500/10 text-teal-655 rounded-full text-xs font-extrabold uppercase tracking-wider">
+            Online Admissions 2026
+          </span>
+          <h2 className="text-3xl font-extrabold text-slate-850 dark:text-white">
+            PTTC Enrollment Portal
+          </h2>
+          <p className="text-sm text-slate-500">
+            Apply online for modern CBT batch folders or seamlessly track the evaluation status of your active application form.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* Card 1: Apply for new Student */}
+          <div 
+            onClick={() => setViewMode('apply')}
+            className="glass-panel p-8 rounded-3xl border border-teal-500/10 hover:border-teal-500/30 transition-all duration-300 cursor-pointer text-center group relative overflow-hidden flex flex-col items-center justify-center space-y-6 hover:-translate-y-1 shadow-lg hover:shadow-xl hover:shadow-teal-500/5 bg-slate-50/50 dark:bg-slate-900/10"
+          >
+            <div className="absolute right-0 top-0 w-24 h-24 bg-teal-500/5 rounded-full blur-2xl group-hover:scale-150 transition-all duration-500"></div>
+            <div className="w-16 h-16 rounded-2xl bg-teal-500/10 text-teal-600 flex items-center justify-center font-bold shadow shadow-teal-500/10 group-hover:bg-teal-600 group-hover:text-white transition-all duration-300">
+              <UserPlus className="w-8 h-8" />
             </div>
-            <div>
-              <label className="text-xs font-bold block mb-1">Select Course Trade</label>
-              <select name="trade" className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-855 border rounded-xl">
-                <option value="IT Support">IT Support & System Administration</option>
-                <option value="Graphic Design">Graphic Design & UI Layouts</option>
-                <option value="Automotive Mechanics">Automotive System Mechanics</option>
-                <option value="Electrical Installation">Electrical House Wiring</option>
-              </select>
+            <div className="space-y-2">
+              <h3 className="font-extrabold text-slate-855 dark:text-white text-xl">Apply for New Student</h3>
+              <p className="text-xs text-slate-500 leading-relaxed max-w-xs">
+                Register a new profile, specify permanent/present addresses, upload academic papers, and submit your technical CBT registration.
+              </p>
             </div>
-            <div>
-              <label className="text-xs font-bold block mb-1">Phone Number</label>
-              <input type="text" name="phone" required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-slate-800 dark:text-white" />
+            <span className="text-xs font-extrabold text-teal-600 dark:text-teal-400 group-hover:underline">
+              Start Application &rarr;
+            </span>
+          </div>
+
+          {/* Card 2: Query Admission Status */}
+          <div 
+            onClick={() => setViewMode('query')}
+            className="glass-panel p-8 rounded-3xl border border-sky-500/10 hover:border-sky-500/30 transition-all duration-300 cursor-pointer text-center group relative overflow-hidden flex flex-col items-center justify-center space-y-6 hover:-translate-y-1 shadow-lg hover:shadow-xl hover:shadow-sky-500/5 bg-slate-50/50 dark:bg-slate-900/10"
+          >
+            <div className="absolute right-0 top-0 w-24 h-24 bg-sky-500/5 rounded-full blur-2xl group-hover:scale-150 transition-all duration-500"></div>
+            <div className="w-16 h-16 rounded-2xl bg-sky-500/10 text-sky-600 flex items-center justify-center font-bold shadow shadow-sky-500/10 group-hover:bg-sky-600 group-hover:text-white transition-all duration-300">
+              <Search className="w-8 h-8" />
             </div>
-            <div>
-              <label className="text-xs font-bold block mb-1">Email Address</label>
-              <input type="email" name="email" required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-slate-800 dark:text-white" />
+            <div className="space-y-2">
+              <h3 className="font-extrabold text-slate-855 dark:text-white text-xl">Query Admission Status</h3>
+              <p className="text-xs text-slate-500 leading-relaxed max-w-xs">
+                Enter your generated Student Application ID (e.g. STU1001) to track approval stages, grading competency, and coordinator feedback.
+              </p>
+            </div>
+            <span className="text-xs font-extrabold text-sky-650 dark:text-sky-400 group-hover:underline">
+              Track Progress &rarr;
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (viewMode === 'apply') {
+    return (
+      <div className="max-w-4xl mx-auto space-y-6 py-4 animate-fadeIn">
+        <button 
+          onClick={() => { setViewMode('menu'); setStep(1); }} 
+          className="flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-teal-600 transition"
+        >
+          <ArrowLeft className="w-4 h-4" /> Back to Enrollment Options
+        </button>
+
+        <div className="glass-panel p-8 rounded-3xl flex flex-col justify-between shadow-xl relative overflow-hidden">
+          {/* Step Progress Bar */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-xs px-2.5 py-1 bg-teal-500/10 text-teal-650 rounded-full font-bold uppercase tracking-wider">
+                Step {step} of 4
+              </span>
+              <span className="text-xs font-semibold text-slate-400">
+                {step === 1 && "Institutional & Personal Details"}
+                {step === 2 && "Addresses (Permanent & Present)"}
+                {step === 3 && "Education & Professional Experience"}
+                {step === 4 && "Appearances & Submission Review"}
+              </span>
+            </div>
+            
+            <div className="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+              <div 
+                className="bg-gradient-to-r from-teal-500 to-sky-600 h-full transition-all duration-300"
+                style={{ width: `${(step / 4) * 100}%` }}
+              ></div>
             </div>
           </div>
-          <button type="submit" className="w-full py-3 bg-teal-600 text-white rounded-xl font-bold hover:bg-teal-700 transition">
-            Submit Application
-          </button>
-        </form>
+
+          {/* Wizard Pages */}
+          <div className="flex-1 mb-8">
+            
+            {/* PAGE 1: Institutional (1) & Personal (2) */}
+            {step === 1 && (
+              <div className="space-y-8 animate-fadeIn">
+                
+                {/* No 1. Institutional Information */}
+                <div className="space-y-4">
+                  <div className="border-l-4 border-teal-500 pl-3">
+                    <h4 className="font-extrabold text-slate-850 dark:text-white text-base">No 1. Institutional Information</h4>
+                    <p className="text-xs text-slate-400">Select course details</p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-bold block mb-1">Trade *</label>
+                      <select 
+                        name="trade" 
+                        value={formData.trade} 
+                        onChange={handleChange}
+                        className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-855 border rounded-xl text-sm"
+                      >
+                        <option value="IT Support">IT Support Service</option>
+                        <option value="Graphic Design">Computer Operation</option>
+                        <option value="Automotive Mechanics">Motor Driving</option>
+                        <option value="Electrical Installation">Electrical Installation and Maintenance</option>
+                        <option value="Sewing Machine Operation">Sewing Machine Operation</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold block mb-1">Batch *</label>
+                      <select
+                        name="batch"
+                        value={formData.batch}
+                        onChange={handleChange}
+                        className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-855 border rounded-xl text-sm"
+                      >
+                        {Array.from({ length: 100 }, (_, i) => {
+                          const num = String(i + 1).padStart(2, '0');
+                          const val = `Batch-${num}`;
+                          return (
+                            <option key={val} value={val}>
+                              Batch {num}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* No.2. Personal Information */}
+                <div className="space-y-4">
+                  <div className="border-l-4 border-teal-500 pl-3">
+                    <h4 className="font-extrabold text-slate-850 dark:text-white text-base">No.2. Personal Information</h4>
+                    <p className="text-xs text-slate-400">Enter applicant personal details</p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-bold block mb-1">Name (English Block) *</label>
+                      <input 
+                        type="text" 
+                        name="nameEnglishBlock" 
+                        placeholder="E.G. Write your Name"
+                        value={formData.nameEnglishBlock} 
+                        onChange={handleChange}
+                        required 
+                        className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm text-slate-800 dark:text-white uppercase"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold block mb-1">Name (Bangla) *</label>
+                      <input 
+                        type="text" 
+                        name="nameBangla" 
+                        placeholder="তোমার নাম"
+                        value={formData.nameBangla} 
+                        onChange={handleChange}
+                        required 
+                        className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm text-slate-800 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold block mb-1">Father's Name (English) *</label>
+                      <input 
+                        type="text" 
+                        name="fatherNameEnglish" 
+                        value={formData.fatherNameEnglish} 
+                        onChange={handleChange}
+                        required 
+                        className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm text-slate-800 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold block mb-1">Father's Name (Bangla)</label>
+                      <input 
+                        type="text" 
+                        name="fatherNameBangla" 
+                        value={formData.fatherNameBangla} 
+                        onChange={handleChange}
+                        className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm text-slate-800 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold block mb-1">Mother's Name (English) *</label>
+                      <input 
+                        type="text" 
+                        name="motherNameEnglish" 
+                        value={formData.motherNameEnglish} 
+                        onChange={handleChange}
+                        required 
+                        className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm text-slate-800 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold block mb-1">Mother's Name (Bangla)</label>
+                      <input 
+                        type="text" 
+                        name="motherNameBangla" 
+                        value={formData.motherNameBangla} 
+                        onChange={handleChange}
+                        className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm text-slate-800 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold block mb-1">Date of Birth (DOB) *</label>
+                      <input 
+                        type="date" 
+                        name="dob" 
+                        value={formData.dob} 
+                        onChange={handleChange}
+                        required 
+                        className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm text-slate-800 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold block mb-1">Gender *</label>
+                      <select 
+                        name="gender" 
+                        value={formData.gender} 
+                        onChange={handleChange}
+                        className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-855 border rounded-xl text-sm"
+                      >
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold block mb-1">Religion</label>
+                      <select 
+                        name="religion" 
+                        value={formData.religion} 
+                        onChange={handleChange}
+                        className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-855 border rounded-xl text-sm"
+                      >
+                        <option value="Islam">Islam</option>
+                        <option value="Hinduism">Hinduism</option>
+                        <option value="Buddhism">Buddhism</option>
+                        <option value="Christianity">Christianity</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold block mb-1">Nationality *</label>
+                      <input 
+                        type="text" 
+                        name="nationality" 
+                        value={formData.nationality} 
+                        onChange={handleChange}
+                        required 
+                        className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm text-slate-800 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold block mb-1">Blood Group</label>
+                      <select 
+                        name="bloodGroup" 
+                        value={formData.bloodGroup} 
+                        onChange={handleChange}
+                        className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-855 border rounded-xl text-sm"
+                      >
+                        <option value="A+">A+</option>
+                        <option value="A-">A-</option>
+                        <option value="B+">B+</option>
+                        <option value="B-">B-</option>
+                        <option value="O+">O+</option>
+                        <option value="O-">O-</option>
+                        <option value="AB+">AB+</option>
+                        <option value="AB-">AB-</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold block mb-1">NID/BR Number *</label>
+                      <input 
+                        type="text" 
+                        name="nidBr" 
+                        placeholder="National ID / Birth Registration"
+                        value={formData.nidBr} 
+                        onChange={handleChange}
+                        required 
+                        className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm text-slate-800 dark:text-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+            {/* PAGE 2: Permanent Address (3) & Present Address (4) */}
+            {step === 2 && (
+              <div className="space-y-8 animate-fadeIn">
+                
+                {/* No.3. Permanent Address */}
+                <div className="space-y-4">
+                  <div className="border-l-4 border-teal-500 pl-3">
+                    <h4 className="font-extrabold text-slate-855 dark:text-white text-base">No.3. Permanent Address</h4>
+                    <p className="text-xs text-slate-400">Specify home address records</p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-bold block mb-1">Holding No *</label>
+                      <input 
+                        type="text" 
+                        name="permHoldingNo" 
+                        value={formData.permHoldingNo} 
+                        onChange={handleChange}
+                        required 
+                        className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm text-slate-800 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold block mb-1">Village / City *</label>
+                      <input 
+                        type="text" 
+                        name="permVillCity" 
+                        value={formData.permVillCity} 
+                        onChange={handleChange}
+                        required 
+                        className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm text-slate-800 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold block mb-1">Post Office *</label>
+                      <input 
+                        type="text" 
+                        name="permPost" 
+                        value={formData.permPost} 
+                        onChange={handleChange}
+                        required 
+                        className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm text-slate-800 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold block mb-1">Thana *</label>
+                      <input 
+                        type="text" 
+                        name="permThana" 
+                        value={formData.permThana} 
+                        onChange={handleChange}
+                        required 
+                        className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm text-slate-800 dark:text-white"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="text-xs font-bold block mb-1">District *</label>
+                      <input 
+                        type="text" 
+                        name="permDistrict" 
+                        value={formData.permDistrict} 
+                        onChange={handleChange}
+                        required 
+                        className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm text-slate-800 dark:text-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sync Address Checkbox */}
+                <div className="flex items-center gap-2 p-3 bg-teal-500/5 border border-teal-500/10 rounded-xl">
+                  <input 
+                    type="checkbox" 
+                    name="sameAddress" 
+                    id="sameAddress" 
+                    checked={formData.sameAddress} 
+                    onChange={handleChange}
+                    className="rounded text-teal-600 focus:ring-teal-500 w-4 h-4 cursor-pointer"
+                  />
+                  <label htmlFor="sameAddress" className="text-xs font-bold text-slate-700 dark:text-slate-350 cursor-pointer selection:bg-transparent">
+                    Permanent Address and Present Address are Same
+                  </label>
+                </div>
+
+                {/* No.4. Present Address */}
+                <div className="space-y-4">
+                  <div className="border-l-4 border-teal-500 pl-3">
+                    <h4 className="font-extrabold text-slate-855 dark:text-white text-base">No.4. Present Address</h4>
+                    <p className="text-xs text-slate-400">Specify current living address</p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-bold block mb-1">Holding No *</label>
+                      <input 
+                        type="text" 
+                        name="presHoldingNo" 
+                        value={formData.presHoldingNo} 
+                        onChange={handleChange}
+                        disabled={formData.sameAddress}
+                        required 
+                        className={`w-full px-4 py-2 border rounded-xl text-sm text-slate-800 dark:text-white ${
+                          formData.sameAddress ? 'bg-slate-200/50 dark:bg-slate-900/50 text-slate-400 cursor-not-allowed' : 'bg-slate-100 dark:bg-slate-800'
+                        }`}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold block mb-1">Village / City *</label>
+                      <input 
+                        type="text" 
+                        name="presVillCity" 
+                        value={formData.presVillCity} 
+                        onChange={handleChange}
+                        disabled={formData.sameAddress}
+                        required 
+                        className={`w-full px-4 py-2 border rounded-xl text-sm text-slate-800 dark:text-white ${
+                          formData.sameAddress ? 'bg-slate-200/50 dark:bg-slate-900/50 text-slate-400 cursor-not-allowed' : 'bg-slate-100 dark:bg-slate-800'
+                        }`}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold block mb-1">Post Office *</label>
+                      <input 
+                        type="text" 
+                        name="presPost" 
+                        value={formData.presPost} 
+                        onChange={handleChange}
+                        disabled={formData.sameAddress}
+                        required 
+                        className={`w-full px-4 py-2 border rounded-xl text-sm text-slate-800 dark:text-white ${
+                          formData.sameAddress ? 'bg-slate-200/50 dark:bg-slate-900/55 text-slate-400 cursor-not-allowed' : 'bg-slate-100 dark:bg-slate-800'
+                        }`}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold block mb-1">Thana *</label>
+                      <input 
+                        type="text" 
+                        name="presThana" 
+                        value={formData.presThana} 
+                        onChange={handleChange}
+                        disabled={formData.sameAddress}
+                        required 
+                        className={`w-full px-4 py-2 border rounded-xl text-sm text-slate-800 dark:text-white ${
+                          formData.sameAddress ? 'bg-slate-200/50 dark:bg-slate-900/55 text-slate-400 cursor-not-allowed' : 'bg-slate-100 dark:bg-slate-800'
+                        }`}
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="text-xs font-bold block mb-1">District *</label>
+                      <input 
+                        type="text" 
+                        name="presDistrict" 
+                        value={formData.presDistrict} 
+                        onChange={handleChange}
+                        disabled={formData.sameAddress}
+                        required 
+                        className={`w-full px-4 py-2 border rounded-xl text-sm text-slate-800 dark:text-white ${
+                          formData.sameAddress ? 'bg-slate-200/50 dark:bg-slate-900/55 text-slate-400 cursor-not-allowed' : 'bg-slate-100 dark:bg-slate-800'
+                        }`}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+            {/* PAGE 3: Education (5) & Experience (6) */}
+            {step === 3 && (
+              <div className="space-y-8 animate-fadeIn">
+                
+                {/* No.5. Educational Qualification */}
+                <div className="space-y-4">
+                  <div className="border-l-4 border-teal-500 pl-3">
+                    <h4 className="font-extrabold text-slate-855 dark:text-white text-base">No.5. Educational Qualification</h4>
+                    <p className="text-xs text-slate-400">Specify your academic profile</p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-bold block mb-1">Name of Examination *</label>
+                      <select 
+                        name="eduExamName" 
+                        value={formData.eduExamName} 
+                        onChange={handleChange}
+                        className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-855 border rounded-xl text-sm"
+                      >
+                        <option value="SSC">SSC / Equivalent</option>
+                        <option value="HSC">HSC / Equivalent</option>
+                        <option value="Diploma">Diploma in Engineering</option>
+                        <option value="Graduation">Graduation / Bachelor</option>
+                        <option value="JSC">JSC / Class 8 Passed</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold block mb-1">Division / Class / GPA Scale *</label>
+                      <select 
+                        name="eduDivision" 
+                        value={formData.eduDivision} 
+                        onChange={handleChange}
+                        className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-855 border rounded-xl text-sm"
+                      >
+                        <option value="1st">1st Division</option>
+                        <option value="2nd">2nd Division</option>
+                        <option value="3rd">3rd Division</option>
+                        <option value="Grade-A">Grade A (GPA 4.00 - 5.00)</option>
+                        <option value="Grade-B">Grade B (GPA 3.00 - 3.99)</option>
+                        <option value="Grade-C">Grade C (GPA 2.00 - 2.99)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold block mb-1">GPA / Marks Obtained *</label>
+                      <input 
+                        type="text" 
+                        name="eduGpa" 
+                        placeholder="e.g. 4.85 / 80%"
+                        value={formData.eduGpa} 
+                        onChange={handleChange}
+                        required 
+                        className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm text-slate-800 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold block mb-1">Passing Year *</label>
+                      <input 
+                        type="number" 
+                        name="eduPassingYear" 
+                        placeholder="e.g. 2024"
+                        value={formData.eduPassingYear} 
+                        onChange={handleChange}
+                        required 
+                        className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm text-slate-800 dark:text-white"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="text-xs font-bold block mb-1">Board / University *</label>
+                      <input 
+                        type="text" 
+                        name="eduBoardUniv" 
+                        placeholder="e.g. Jessore Board / National University"
+                        value={formData.eduBoardUniv} 
+                        onChange={handleChange}
+                        required 
+                        className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm text-slate-800 dark:text-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* No.06. Experiences (Optional) */}
+                <div className="space-y-4">
+                  <div className="border-l-4 border-teal-500 pl-3">
+                    <h4 className="font-extrabold text-slate-855 dark:text-white text-base">No.06. Experiences (Optional)</h4>
+                    <p className="text-xs text-slate-400">Add past professional or internship records</p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-bold block mb-1">Name of Experience / Organization</label>
+                      <input 
+                        type="text" 
+                        name="expName" 
+                        placeholder="e.g. Link3 Technologies"
+                        value={formData.expName} 
+                        onChange={handleChange}
+                        className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm text-slate-800 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold block mb-1">Designation</label>
+                      <input 
+                        type="text" 
+                        name="expDesignation" 
+                        placeholder="e.g. Support Technician"
+                        value={formData.expDesignation} 
+                        onChange={handleChange}
+                        className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm text-slate-800 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold block mb-1">Responsibility</label>
+                      <input 
+                        type="text" 
+                        name="expResponsibility" 
+                        placeholder="e.g. Hardware troubleshooting, networking"
+                        value={formData.expResponsibility} 
+                        onChange={handleChange}
+                        className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm text-slate-800 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold block mb-1">Time Period</label>
+                      <input 
+                        type="text" 
+                        name="expTimePeriod" 
+                        placeholder="e.g. 1 Year (2024 - 2025)"
+                        value={formData.expTimePeriod} 
+                        onChange={handleChange}
+                        className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm text-slate-800 dark:text-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+            {/* PAGE 4: Appearances (7) & Review / Submit (8) */}
+            {step === 4 && (
+              <div className="space-y-8 animate-fadeIn">
+                
+                {/* No.07. Appearances */}
+                <div className="space-y-4">
+                  <div className="border-l-4 border-teal-500 pl-3">
+                    <h4 className="font-extrabold text-slate-855 dark:text-white text-base">No.07. Appearances</h4>
+                    <p className="text-xs text-slate-400">Upload signature and profile picture</p>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    
+                    {/* Photo Field */}
+                    <div className="p-4 bg-slate-100 dark:bg-slate-855 rounded-2xl border border-slate-200 dark:border-slate-800/80 flex flex-col items-center">
+                      <label className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">Applicant Photo (300 * 300) *</label>
+                      
+                      <div className="w-36 h-36 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl flex items-center justify-center overflow-hidden bg-white dark:bg-slate-900 relative">
+                        {formData.photo ? (
+                          <img src={formData.photo} alt="Applicant Photo" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="text-center p-3">
+                            <span className="text-[10px] font-bold text-slate-400 block">300 x 300 px</span>
+                            <span className="text-[9px] text-slate-400">Only JPG, PNG</span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={(e) => handleFileChange(e, 'photo')} 
+                        className="mt-3 text-xs w-full max-w-[200px]" 
+                      />
+                      {photoError && <p className="text-[10px] text-rose-500 font-semibold mt-1">{photoError}</p>}
+                    </div>
+
+                    {/* Signature Field */}
+                    <div className="p-4 bg-slate-100 dark:bg-slate-855 rounded-2xl border border-slate-200 dark:border-slate-800/80 flex flex-col items-center">
+                      <label className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">Signature Upload (300 * 80) *</label>
+                      
+                      <div className="w-48 h-16 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl flex items-center justify-center overflow-hidden bg-white dark:bg-slate-900 relative">
+                        {formData.signature ? (
+                          <img src={formData.signature} alt="Applicant Signature" className="w-full h-full object-contain" />
+                        ) : (
+                          <div className="text-center py-1">
+                            <span className="text-[10px] font-bold text-slate-400 block">300 x 80 px</span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={(e) => handleFileChange(e, 'signature')} 
+                        className="mt-3 text-xs w-full max-w-[200px]" 
+                      />
+                      {sigError && <p className="text-[10px] text-rose-500 font-semibold mt-1">{sigError}</p>}
+                    </div>
+
+                  </div>
+                </div>
+
+                {/* No.08. Full application Review Page */}
+                <div className="space-y-4">
+                  <div className="border-l-4 border-teal-500 pl-3">
+                    <h4 className="font-extrabold text-slate-855 dark:text-white text-base">No.08. Full Application Review</h4>
+                    <p className="text-xs text-slate-400">Verify your information before submission</p>
+                  </div>
+
+                  <div className="bg-slate-100 dark:bg-slate-855 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-6 text-xs max-h-96 overflow-y-auto">
+                    
+                    {/* Appearance Review */}
+                    <div className="flex flex-col md:flex-row gap-6 items-center border-b border-slate-200 dark:border-slate-800 pb-4 justify-between">
+                      <div className="flex gap-4 items-center">
+                        <div className="w-20 h-20 rounded-lg overflow-hidden border border-slate-300 bg-slate-200">
+                          {formData.photo ? <img src={formData.photo} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-400">No Photo</div>}
+                        </div>
+                        <div>
+                          <h5 className="font-bold text-base text-slate-800 dark:text-slate-100 uppercase">{formData.nameEnglishBlock || "Your Name"}</h5>
+                          <p className="text-slate-500 font-medium">Trade Selected: {formData.trade} ({formData.batch})</p>
+                        </div>
+                      </div>
+                      <div className="w-32 h-10 border border-slate-350 bg-white dark:bg-slate-900 rounded flex items-center justify-center overflow-hidden">
+                        {formData.signature ? <img src={formData.signature} className="w-full h-full object-contain" /> : <span className="text-slate-400">No Signature</span>}
+                      </div>
+                    </div>
+
+                    {/* Personal Review */}
+                    <div className="space-y-2">
+                      <h5 className="font-bold text-teal-600 border-b border-teal-500/10 pb-1">Personal Details</h5>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-y-2.5 gap-x-4">
+                        <div><strong className="text-slate-400">Name (Bangla):</strong> <span className="text-slate-800 dark:text-slate-200">{formData.nameBangla || 'N/A'}</span></div>
+                        <div><strong className="text-slate-400">Father's Name (EN):</strong> <span className="text-slate-800 dark:text-slate-200">{formData.fatherNameEnglish || 'N/A'}</span></div>
+                        <div><strong className="text-slate-400">Mother's Name (EN):</strong> <span className="text-slate-800 dark:text-slate-200">{formData.motherNameEnglish || 'N/A'}</span></div>
+                        <div><strong className="text-slate-400">DOB:</strong> <span className="text-slate-800 dark:text-slate-200">{formData.dob || 'N/A'}</span></div>
+                        <div><strong className="text-slate-400">Gender:</strong> <span className="text-slate-800 dark:text-slate-200">{formData.gender}</span></div>
+                        <div><strong className="text-slate-400">Religion:</strong> <span className="text-slate-800 dark:text-slate-200">{formData.religion}</span></div>
+                        <div><strong className="text-slate-400">Nationality:</strong> <span className="text-slate-800 dark:text-slate-200">{formData.nationality}</span></div>
+                        <div><strong className="text-slate-400">Blood Group:</strong> <span className="text-slate-800 dark:text-slate-200">{formData.bloodGroup}</span></div>
+                        <div><strong className="text-slate-400">NID/BR No:</strong> <span className="text-slate-800 dark:text-slate-200">{formData.nidBr || 'N/A'}</span></div>
+                      </div>
+                    </div>
+
+                    {/* Permanent Address Review */}
+                    <div className="space-y-2">
+                      <h5 className="font-bold text-teal-600 border-b border-teal-500/10 pb-1">Permanent Address</h5>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-y-2 gap-x-4">
+                        <div><strong className="text-slate-400">Holding No:</strong> <span className="text-slate-800 dark:text-slate-200">{formData.permHoldingNo || 'N/A'}</span></div>
+                        <div><strong className="text-slate-400">Village/City:</strong> <span className="text-slate-800 dark:text-slate-200">{formData.permVillCity || 'N/A'}</span></div>
+                        <div><strong className="text-slate-400">Post Office:</strong> <span className="text-slate-800 dark:text-slate-200">{formData.permPost || 'N/A'}</span></div>
+                        <div><strong className="text-slate-400">Thana:</strong> <span className="text-slate-800 dark:text-slate-200">{formData.permThana || 'N/A'}</span></div>
+                        <div><strong className="text-slate-400">District:</strong> <span className="text-slate-800 dark:text-slate-200">{formData.permDistrict || 'N/A'}</span></div>
+                      </div>
+                    </div>
+
+                    {/* Present Address Review */}
+                    <div className="space-y-2">
+                      <h5 className="font-bold text-teal-600 border-b border-teal-500/10 pb-1">Present Address</h5>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-y-2 gap-x-4">
+                        <div><strong className="text-slate-400">Holding No:</strong> <span className="text-slate-800 dark:text-slate-200">{formData.presHoldingNo || 'N/A'}</span></div>
+                        <div><strong className="text-slate-400">Village/City:</strong> <span className="text-slate-800 dark:text-slate-200">{formData.presVillCity || 'N/A'}</span></div>
+                        <div><strong className="text-slate-400">Post Office:</strong> <span className="text-slate-800 dark:text-slate-200">{formData.presPost || 'N/A'}</span></div>
+                        <div><strong className="text-slate-400">Thana:</strong> <span className="text-slate-800 dark:text-slate-200">{formData.presThana || 'N/A'}</span></div>
+                        <div><strong className="text-slate-400">District:</strong> <span className="text-slate-800 dark:text-slate-200">{formData.presDistrict || 'N/A'}</span></div>
+                      </div>
+                    </div>
+
+                    {/* Education & Experience Review */}
+                    <div className="space-y-2">
+                      <h5 className="font-bold text-teal-600 border-b border-teal-500/10 pb-1">Academic & Job Background</h5>
+                      <div className="grid grid-cols-2 gap-y-3 gap-x-4">
+                        <div>
+                          <strong className="text-slate-400 block mb-0.5">Education:</strong>
+                          <div className="p-2 bg-slate-200/50 dark:bg-slate-900/50 rounded">
+                            <strong>{formData.eduExamName}</strong> | {formData.eduDivision} ({formData.eduBoardUniv})<br />
+                            Passing Year: {formData.eduPassingYear} | GPA: {formData.eduGpa}
+                          </div>
+                        </div>
+                        <div>
+                          <strong className="text-slate-400 block mb-0.5">Experience (Optional):</strong>
+                          <div className="p-2 bg-slate-200/50 dark:bg-slate-900/50 rounded">
+                            {formData.expName ? (
+                              <>
+                                <strong>{formData.expName}</strong> - {formData.expDesignation}<br />
+                                Role: {formData.expResponsibility} | Period: {formData.expTimePeriod}
+                              </>
+                            ) : (
+                              <span className="text-slate-400 italic">No experience record added</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+          </div>
+
+          {/* Wizard Controls */}
+          <div className="flex justify-between items-center pt-4 border-t border-slate-200 dark:border-slate-800/80">
+            {step > 1 ? (
+              <button 
+                type="button" 
+                onClick={handleBack}
+                className="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-bold rounded-xl transition"
+              >
+                Back
+              </button>
+            ) : (
+              <div></div>
+            )}
+
+            {step < 4 ? (
+              <button 
+                type="button" 
+                onClick={handleNext}
+                className="px-6 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-sm font-bold rounded-xl transition shadow shadow-teal-600/20"
+              >
+                Next Step
+              </button>
+            ) : (
+              <button 
+                type="button" 
+                onClick={handleSubmit}
+                className="px-8 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-sm font-bold rounded-xl transition shadow-lg shadow-emerald-500/10"
+              >
+                Submit Application
+              </button>
+            )}
+          </div>
+
+        </div>
 
         {successMsg && (
-          <div className="p-4 bg-emerald-500/15 border border-emerald-500/20 text-emerald-800 dark:text-emerald-400 rounded-xl mt-4">
+          <div className="p-4 bg-emerald-500/15 border border-emerald-500/20 text-emerald-800 dark:text-emerald-400 rounded-xl mt-4 max-w-4xl mx-auto animate-fadeIn">
             <div className="font-bold">Application Submitted Successfully!</div>
             <div className="text-xs mt-1">Please write down your Application ID for status tracking: <strong>{successMsg}</strong></div>
           </div>
         )}
-      </div>
 
-      <div className="glass-panel p-6 rounded-2xl space-y-4">
-        <h3 className="font-bold text-lg">Query Application Status</h3>
-        <input 
-          type="text" 
-          placeholder="Application ID (e.g. STU1004)"
-          value={appId}
-          onChange={(e) => setAppId(e.target.value)}
-          className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-slate-850 dark:text-white"
-        />
-        {appId && (
-          <div className="p-4 bg-slate-100 dark:bg-slate-850 rounded-xl">
-            {students.find(s => s.id === appId) ? (
-              <div>
-                <div className="text-sm font-semibold">Name: {students.find(s => s.id === appId).name}</div>
-                <div className="text-xs text-slate-500 mt-1">Trade: {students.find(s => s.id === appId).trade}</div>
-                <div className="mt-2 text-xs font-bold">
-                  Status: 
-                  <span className={`ml-2 px-2 py-0.5 rounded ${
-                    students.find(s => s.id === appId).status === 'Approved' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                  }`}>
-                    {students.find(s => s.id === appId).status}
-                  </span>
-                </div>
+        {/* Floating Toast Notification */}
+        {toast && (
+          <div className="fixed bottom-6 right-6 z-[9999] animate-slideInRight max-w-sm w-full">
+            <div className="glass-panel p-4 rounded-2xl border border-teal-500/30 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md shadow-2xl flex items-start gap-3 relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-teal-500 to-emerald-500"></div>
+              <div className="w-8 h-8 rounded-xl bg-teal-500/15 text-teal-600 dark:text-teal-400 flex items-center justify-center font-bold shrink-0 mt-0.5">
+                <CheckCircle className="w-5 h-5" />
               </div>
-            ) : (
-              <div className="text-xs text-rose-500 font-semibold">No record found with ID {appId}</div>
-            )}
+              <div className="flex-1 min-w-0 pr-4">
+                <h5 className="font-extrabold text-xs text-slate-800 dark:text-slate-100">Submission Successful</h5>
+                <p className="text-[11px] text-slate-600 dark:text-slate-350 mt-1 leading-snug font-semibold">{toast.message}</p>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setToast(null)}
+                className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition text-slate-400 hover:text-slate-600 shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         )}
       </div>
-    </div>
-  );
+    );
+  }
+
+  if (viewMode === 'query') {
+    return (
+      <div className="max-w-2xl mx-auto space-y-6 py-4 animate-fadeIn">
+        <button 
+          onClick={() => { setViewMode('menu'); setAppId(''); }} 
+          className="flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-teal-600 transition"
+        >
+          <ArrowLeft className="w-4 h-4" /> Back to Enrollment Options
+        </button>
+
+        <div className="glass-panel p-8 rounded-3xl space-y-6 shadow-xl">
+          <div>
+            <h3 className="font-extrabold text-slate-850 dark:text-white text-xl">Query Admission Status</h3>
+            <p className="text-xs text-slate-400 mt-1">Search for previous applications using your generated ID</p>
+          </div>
+          
+          <input 
+            type="text" 
+            placeholder="Application ID (e.g. STU1004)"
+            value={appId}
+            onChange={(e) => setAppId(e.target.value)}
+            className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-800 border rounded-xl text-slate-850 dark:text-white text-sm"
+          />
+          {appId && (
+            <div className="p-4 bg-slate-100 dark:bg-slate-850 rounded-xl border">
+              {students.find(s => s.id === appId) ? (
+                <div className="space-y-4 text-xs">
+                  <div className="flex justify-between items-center border-b pb-3">
+                    <div>
+                      <div className="font-extrabold text-base text-slate-800 dark:text-white uppercase">{students.find(s => s.id === appId).name}</div>
+                      <div className="text-slate-400 font-medium">{students.find(s => s.id === appId).trade} ({students.find(s => s.id === appId).batch})</div>
+                    </div>
+                    {students.find(s => s.id === appId).photo && (
+                      <img src={students.find(s => s.id === appId).photo} className="w-12 h-12 object-cover rounded-lg border shadow-sm" />
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 text-slate-550">
+                    <div><strong>NID/BR:</strong> {students.find(s => s.id === appId).nidBr || 'N/A'}</div>
+                    <div><strong>Gender:</strong> {students.find(s => s.id === appId).gender || 'N/A'}</div>
+                    <div><strong>Father Name:</strong> {students.find(s => s.id === appId).fatherNameEnglish || 'N/A'}</div>
+                    <div><strong>Mother Name:</strong> {students.find(s => s.id === appId).motherNameEnglish || 'N/A'}</div>
+                  </div>
+                  <div className="flex items-center justify-between pt-3 border-t">
+                    <span className="font-bold text-slate-650 dark:text-slate-350">Admission Status:</span>
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                      students.find(s => s.id === appId).status === 'Approved' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                    }`}>
+                      {students.find(s => s.id === appId).status}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-xs text-rose-500 font-semibold text-center py-2">No record found with ID {appId}</div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 }
