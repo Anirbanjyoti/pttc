@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import { 
   signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
+  sendPasswordResetEmail, 
   signOut, 
   onAuthStateChanged 
 } from 'firebase/auth';
@@ -55,12 +55,10 @@ const INITIAL_TEACHERS = [
 // -------------------------------------------------------------
 export function PortalAdmin({ students, refreshStudents }) {
   const [adminUser, setAdminUser] = useState(null);
-  const [authMode, setAuthMode] = useState('login'); // login | register
+  const [authMode, setAuthMode] = useState('login'); // login | reset
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [regName, setRegName] = useState('');
-  const [regEmail, setRegEmail] = useState('');
-  const [regPassword, setRegPassword] = useState('');
+  const [resetEmail, setResetEmail] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -99,21 +97,20 @@ export function PortalAdmin({ students, refreshStudents }) {
     }
   };
 
-  const handleRegister = async (e) => {
+  const handleResetPassword = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
-    if (!regEmail || !regPassword) {
-      setError('Please fill in email and password.');
+    if (!resetEmail) {
+      setError('Please enter your admin email address.');
       return;
     }
     try {
-      await createUserWithEmailAndPassword(auth, regEmail, regPassword);
-      setSuccess('Administrator registered and logged in successfully!');
-      setAuthMode('login');
+      await sendPasswordResetEmail(auth, resetEmail);
+      setSuccess('Password reset link sent! Please check your email inbox/spam folder.');
     } catch (err) {
       console.error(err);
-      setError(err.message || 'Administrator registration failed.');
+      setError(err.message || 'Failed to send password reset email.');
     }
   };
 
@@ -157,19 +154,12 @@ export function PortalAdmin({ students, refreshStudents }) {
   const handleUpdateStudent = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
+    const data = Object.fromEntries(fd.entries());
     try {
       const res = await fetch(`/api/students/${editingStudent.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: fd.get('name'),
-          trade: fd.get('trade'),
-          batch: fd.get('batch'),
-          phone: fd.get('phone'),
-          email: fd.get('email'),
-          status: fd.get('status'),
-          grade: fd.get('grade')
-        })
+        body: JSON.stringify(data)
       });
       if (res.ok) {
         refreshStudents();
@@ -404,25 +394,21 @@ export function PortalAdmin({ students, refreshStudents }) {
                 Authenticate Administrator
               </button>
               <p className="text-xs text-center text-slate-500 mt-4">
-                New Administrator?{' '}
-                <button type="button" onClick={() => { setAuthMode('register'); setError(''); }} className="text-teal-600 font-bold hover:underline">Register Account</button>
+                Forgot your password?{' '}
+                <button type="button" onClick={() => { setAuthMode('reset'); setError(''); }} className="text-teal-600 font-bold hover:underline">Reset Here</button>
               </p>
             </form>
           ) : (
-            <form onSubmit={handleRegister} className="space-y-4">
+            <form onSubmit={handleResetPassword} className="space-y-4">
               <div>
                 <label className="text-xs font-bold block mb-1 text-slate-650 dark:text-slate-300">Admin Email Address</label>
-                <input type="email" placeholder="officer@pttc.edu" value={regEmail} onChange={(e) => setRegEmail(e.target.value)} required className="w-full px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm border dark:border-slate-700" />
-              </div>
-              <div>
-                <label className="text-xs font-bold block mb-1 text-slate-650 dark:text-slate-300">Account Password</label>
-                <input type="password" placeholder="Create robust password" value={regPassword} onChange={(e) => setRegPassword(e.target.value)} required className="w-full px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm border dark:border-slate-700" />
+                <input type="email" placeholder="admin@pttc.edu" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} required className="w-full px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm border dark:border-slate-700" />
               </div>
               <button type="submit" className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl transition shadow">
-                Confirm Admin Registration
+                Send Password Reset Link
               </button>
               <p className="text-xs text-center text-slate-500 mt-4">
-                Already registered?{' '}
+                Remember your password?{' '}
                 <button type="button" onClick={() => { setAuthMode('login'); setError(''); }} className="text-teal-600 font-bold hover:underline">Sign In</button>
               </p>
             </form>
@@ -674,52 +660,286 @@ export function PortalAdmin({ students, refreshStudents }) {
       {/* EDIT STUDENT OVERLAY MODAL */}
       {editingStudent && (
         <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="glass-panel max-w-md w-full p-6 rounded-3xl border border-teal-500/20 shadow-2xl relative">
-            <h3 className="text-xl font-extrabold mb-4">Edit Student Information</h3>
-            <form onSubmit={handleUpdateStudent} className="space-y-4">
-              <div>
-                <label className="text-xs font-bold block mb-1">Full Name</label>
-                <input name="name" type="text" defaultValue={editingStudent.name} required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
-              </div>
-              <div>
-                <label className="text-xs font-bold block mb-1">Trade</label>
-                <select name="trade" defaultValue={editingStudent.trade} required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-850 border rounded-xl text-sm">
-                  <option value="IT Support">IT Support & IoT</option>
-                  <option value="Graphic Design">Graphic Design & UI/UX</option>
-                  <option value="Automotive Mechanics">Automotive Mechanics</option>
-                  <option value="Electrical Installation">Electrical Installation</option>
-                  <option value="Sewing Machine Operation">Sewing Machine Operation</option>
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold block mb-1">Batch</label>
-                  <input name="batch" type="text" defaultValue={editingStudent.batch} required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+          <div className="glass-panel max-w-3xl w-full max-h-[85vh] overflow-y-auto p-6 rounded-3xl border border-teal-500/20 shadow-2xl relative">
+            <h3 className="text-xl font-extrabold mb-6">Edit Student Full Record</h3>
+            <form onSubmit={handleUpdateStudent} className="space-y-6">
+
+              {/* Section 1: Institutional */}
+              <div className="space-y-3">
+                <div className="border-l-4 border-teal-500 pl-3">
+                  <h4 className="font-extrabold text-slate-850 dark:text-white text-base">Institutional Information</h4>
                 </div>
-                <div>
-                  <label className="text-xs font-bold block mb-1">CBT Grade</label>
-                  <input name="grade" type="text" defaultValue={editingStudent.grade} required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold block mb-1">Trade *</label>
+                    <select name="trade" defaultValue={editingStudent.trade} required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-850 border rounded-xl text-sm">
+                      <option value="IT Support">IT Support & IoT</option>
+                      <option value="Graphic Design">Graphic Design & UI/UX</option>
+                      <option value="Automotive Mechanics">Automotive Mechanics</option>
+                      <option value="Electrical Installation">Electrical Installation</option>
+                      <option value="Sewing Machine Operation">Sewing Machine Operation</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1">Batch *</label>
+                    <input name="batch" type="text" defaultValue={editingStudent.batch} required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                  </div>
                 </div>
               </div>
-              <div>
-                <label className="text-xs font-bold block mb-1">Phone Number</label>
-                <input name="phone" type="text" defaultValue={editingStudent.phone} required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+
+              {/* Section 2: Personal Information */}
+              <div className="space-y-3">
+                <div className="border-l-4 border-teal-500 pl-3">
+                  <h4 className="font-extrabold text-slate-850 dark:text-white text-base">Personal Information</h4>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold block mb-1">Name (English) *</label>
+                    <input name="name" type="text" defaultValue={editingStudent.name || editingStudent.nameEnglishBlock || ''} required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm uppercase" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1">Name (Bangla)</label>
+                    <input name="nameBangla" type="text" defaultValue={editingStudent.nameBangla || ''} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1">Father's Name (English)</label>
+                    <input name="fatherNameEnglish" type="text" defaultValue={editingStudent.fatherNameEnglish || ''} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1">Father's Name (Bangla)</label>
+                    <input name="fatherNameBangla" type="text" defaultValue={editingStudent.fatherNameBangla || ''} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1">Mother's Name (English)</label>
+                    <input name="motherNameEnglish" type="text" defaultValue={editingStudent.motherNameEnglish || ''} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1">Mother's Name (Bangla)</label>
+                    <input name="motherNameBangla" type="text" defaultValue={editingStudent.motherNameBangla || ''} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1">DOB</label>
+                    <input name="dob" type="date" defaultValue={editingStudent.dob || ''} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1">Gender</label>
+                    <select name="gender" defaultValue={editingStudent.gender || 'Male'} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-850 border rounded-xl text-sm">
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1">Religion</label>
+                    <select name="religion" defaultValue={editingStudent.religion || 'Islam'} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-850 border rounded-xl text-sm">
+                      <option value="Islam">Islam</option>
+                      <option value="Hinduism">Hinduism</option>
+                      <option value="Buddhism">Buddhism</option>
+                      <option value="Christianity">Christianity</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1">Nationality</label>
+                    <input name="nationality" type="text" defaultValue={editingStudent.nationality || 'Bangladeshi'} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1">Blood Group</label>
+                    <select name="bloodGroup" defaultValue={editingStudent.bloodGroup || 'O+'} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-850 border rounded-xl text-sm">
+                      <option value="A+">A+</option>
+                      <option value="A-">A-</option>
+                      <option value="B+">B+</option>
+                      <option value="B-">B-</option>
+                      <option value="O+">O+</option>
+                      <option value="O-">O-</option>
+                      <option value="AB+">AB+</option>
+                      <option value="AB-">AB-</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1">NID/BR Number</label>
+                    <input name="nidBr" type="text" defaultValue={editingStudent.nidBr || ''} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1">Phone No</label>
+                    <input name="phoneNo" type="text" defaultValue={editingStudent.phoneNo || ''} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1">Guardian Phone No</label>
+                    <input name="guardianPhoneNo" type="text" defaultValue={editingStudent.guardianPhoneNo || ''} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className="text-xs font-bold block mb-1">Email Address</label>
-                <input name="email" type="email" defaultValue={editingStudent.email} required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+
+              {/* Section 3: Permanent Address */}
+              <div className="space-y-3">
+                <div className="border-l-4 border-teal-500 pl-3">
+                  <h4 className="font-extrabold text-slate-850 dark:text-white text-base">Permanent Address</h4>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold block mb-1">Holding No</label>
+                    <input name="permHoldingNo" type="text" defaultValue={editingStudent.permHoldingNo || ''} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1">Village / City</label>
+                    <input name="permVillCity" type="text" defaultValue={editingStudent.permVillCity || ''} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1">Post Office</label>
+                    <input name="permPost" type="text" defaultValue={editingStudent.permPost || ''} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1">Thana</label>
+                    <input name="permThana" type="text" defaultValue={editingStudent.permThana || ''} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-xs font-bold block mb-1">District</label>
+                    <input name="permDistrict" type="text" defaultValue={editingStudent.permDistrict || ''} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className="text-xs font-bold block mb-1">Enrollment Status</label>
-                <select name="status" defaultValue={editingStudent.status} required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-850 border rounded-xl text-sm">
-                  <option value="Pending">Pending</option>
-                  <option value="Approved">Approved</option>
-                  <option value="Completed">Completed</option>
-                </select>
+
+              {/* Section 4: Present Address */}
+              <div className="space-y-3">
+                <div className="border-l-4 border-teal-500 pl-3">
+                  <h4 className="font-extrabold text-slate-850 dark:text-white text-base">Present Address</h4>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold block mb-1">Holding No</label>
+                    <input name="presHoldingNo" type="text" defaultValue={editingStudent.presHoldingNo || ''} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1">Village / City</label>
+                    <input name="presVillCity" type="text" defaultValue={editingStudent.presVillCity || ''} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1">Post Office</label>
+                    <input name="presPost" type="text" defaultValue={editingStudent.presPost || ''} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1">Thana</label>
+                    <input name="presThana" type="text" defaultValue={editingStudent.presThana || ''} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-xs font-bold block mb-1">District</label>
+                    <input name="presDistrict" type="text" defaultValue={editingStudent.presDistrict || ''} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                  </div>
+                </div>
               </div>
-              <div className="flex gap-2 pt-2">
-                <button type="submit" className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl transition">Save Changes</button>
-                <button type="button" onClick={() => setEditingStudent(null)} className="px-4 py-2.5 bg-slate-200 dark:bg-slate-800 rounded-xl transition">Cancel</button>
+
+              {/* Section 5: Education */}
+              <div className="space-y-3">
+                <div className="border-l-4 border-teal-500 pl-3">
+                  <h4 className="font-extrabold text-slate-850 dark:text-white text-base">Educational Qualification</h4>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold block mb-1">Exam Name</label>
+                    <select name="eduExamName" defaultValue={editingStudent.eduExamName || 'SSC'} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-850 border rounded-xl text-sm">
+                      <option value="SSC">SSC</option>
+                      <option value="HSC">HSC</option>
+                      <option value="Graduate">Graduate</option>
+                      <option value="Post Graduate">Post Graduate</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1">Division/Class</label>
+                    <select name="eduDivision" defaultValue={editingStudent.eduDivision || '1st'} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-850 border rounded-xl text-sm">
+                      <option value="1st">1st Division</option>
+                      <option value="2nd">2nd Division</option>
+                      <option value="3rd">3rd Division</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1">GPA / Marks</label>
+                    <input name="eduGpa" type="text" defaultValue={editingStudent.eduGpa || ''} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1">Passing Year</label>
+                    <input name="eduPassingYear" type="text" defaultValue={editingStudent.eduPassingYear || ''} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-xs font-bold block mb-1">Board / University</label>
+                    <input name="eduBoardUniv" type="text" defaultValue={editingStudent.eduBoardUniv || ''} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 6: Experience */}
+              <div className="space-y-3">
+                <div className="border-l-4 border-teal-500 pl-3">
+                  <h4 className="font-extrabold text-slate-850 dark:text-white text-base">Professional Experience</h4>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold block mb-1">Organization</label>
+                    <input name="expName" type="text" defaultValue={editingStudent.expName || ''} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1">Designation</label>
+                    <input name="expDesignation" type="text" defaultValue={editingStudent.expDesignation || ''} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1">Responsibilities</label>
+                    <input name="expResponsibility" type="text" defaultValue={editingStudent.expResponsibility || ''} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1">Duration</label>
+                    <input name="expTimePeriod" type="text" defaultValue={editingStudent.expTimePeriod || ''} placeholder="e.g. 2 years" className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 7: Status & Grade */}
+              <div className="space-y-3">
+                <div className="border-l-4 border-teal-500 pl-3">
+                  <h4 className="font-extrabold text-slate-850 dark:text-white text-base">Status & Grade</h4>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold block mb-1">Enrollment Status *</label>
+                    <select name="status" defaultValue={editingStudent.status} required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-850 border rounded-xl text-sm">
+                      <option value="Pending">Pending</option>
+                      <option value="Approved">Approved</option>
+                      <option value="Completed">Completed</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1">CBT Grade *</label>
+                    <input name="grade" type="text" defaultValue={editingStudent.grade} required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Photo & Signature Preview */}
+              {(editingStudent.photo || editingStudent.signature) && (
+                <div className="space-y-3">
+                  <div className="border-l-4 border-teal-500 pl-3">
+                    <h4 className="font-extrabold text-slate-850 dark:text-white text-base">Uploaded Images</h4>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {editingStudent.photo && (
+                      <div>
+                        <label className="text-xs font-bold block mb-1">Photo</label>
+                        <img src={editingStudent.photo} alt="Student photo" className="w-24 h-24 object-cover rounded-xl border" />
+                      </div>
+                    )}
+                    {editingStudent.signature && (
+                      <div>
+                        <label className="text-xs font-bold block mb-1">Signature</label>
+                        <img src={editingStudent.signature} alt="Signature" className="w-32 h-12 object-contain rounded-xl border bg-white" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-4 border-t border-slate-200 dark:border-slate-800">
+                <button type="submit" className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl transition">Save All Changes</button>
+                <button type="button" onClick={() => setEditingStudent(null)} className="px-6 py-2.5 bg-slate-200 dark:bg-slate-800 rounded-xl transition font-bold">Cancel</button>
               </div>
             </form>
           </div>
