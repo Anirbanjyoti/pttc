@@ -51,6 +51,8 @@ const studentSchema = new mongoose.Schema({
   nationality: { type: String },
   bloodGroup: { type: String },
   nidBr: { type: String },
+  phoneNo: { type: String },
+  guardianPhoneNo: { type: String },
   
   // Permanent Address
   permHoldingNo: { type: String },
@@ -168,22 +170,35 @@ app.get('/api/students/:id', async (req, res) => {
   }
 });
 
+function generateNextStudentId(trade, students) {
+  const tradeCode = trade ? trade.substring(0, 2).toUpperCase() : 'ST';
+  const maxNum = (students || []).reduce((max, s) => {
+    const parts = s.id?.split('-');
+    if (parts && parts.length === 2) {
+      const num = parseInt(parts[1], 10);
+      return !isNaN(num) && num > max ? num : max;
+    }
+    return max;
+  }, 0);
+  return `STU${tradeCode}-${String(maxNum + 1).padStart(4, '0')}`;
+}
+
 // 3. Create a new student (Register/Enrollment form)
 app.post('/api/students', async (req, res) => {
   const { status, grade, id } = req.body;
   
-  // Generate simple sequential or unique ID if none provided
   let finalId = id;
-  if (!finalId) {
-    finalId = `STU${Date.now().toString().slice(-4)}`;
-  }
 
   if (mongoose.connection.readyState !== 1) {
     console.log('Using local JSON file fallback for POST /api/students');
     const list = readStudentsFromFile();
-    const existing = list.find(s => s.id === finalId);
-    if (existing) {
-      finalId = `STU${(Date.now() + 1).toString().slice(-4)}`;
+    if (!finalId) {
+      finalId = generateNextStudentId(req.body.trade, list);
+    } else {
+      const existing = list.find(s => s.id === finalId);
+      if (existing) {
+        finalId = generateNextStudentId(req.body.trade, list);
+      }
     }
     const newStudent = {
       ...req.body,
@@ -198,10 +213,15 @@ app.post('/api/students', async (req, res) => {
   }
 
   try {
-    // Check if ID already exists
-    const existing = await Student.findOne({ id: finalId });
-    if (existing) {
-      finalId = `STU${(Date.now() + 1).toString().slice(-4)}`;
+    if (!finalId) {
+      const lastStudent = await Student.findOne().sort({ id: -1 });
+      finalId = generateNextStudentId(req.body.trade, lastStudent ? [lastStudent] : []);
+    } else {
+      const existing = await Student.findOne({ id: finalId });
+      if (existing) {
+        const lastStudent = await Student.findOne().sort({ id: -1 });
+        finalId = generateNextStudentId(req.body.trade, lastStudent ? [lastStudent] : []);
+      }
     }
 
     const newStudent = new Student({

@@ -8,6 +8,7 @@ import {
   onAuthStateChanged 
 } from 'firebase/auth';
 import { auth } from './firebase';
+import { HIND_SILIGURI_BASE64 } from './fontBase64';
 import { 
   Award, 
   Megaphone, 
@@ -269,6 +270,8 @@ export function PortalAdmin({ students, refreshStudents }) {
       "Nationality": s.nationality || "",
       "Blood Group": s.bloodGroup || "",
       "NID/BR": s.nidBr || "",
+      "Phone No": s.phoneNo || "",
+      "Guardian Phone No": s.guardianPhoneNo || "",
       
       // Permanent Address
       "No.3. Permanent Address": [
@@ -313,35 +316,11 @@ export function PortalAdmin({ students, refreshStudents }) {
     XLSX.writeFile(workbook, "PTTC_Students_Report.xlsx");
   };
 
-  const fetchAndAddBengaliFont = async (doc) => {
-    try {
-      const fontUrl = 'https://fonts.gstatic.com/s/hindsiliguri/v12/ijwTs5OBP757rS-K9v29y2Ve_M9v7A.ttf';
-      const response = await fetch(fontUrl);
-      const arrayBuffer = await response.arrayBuffer();
-      let binary = '';
-      const bytes = new Uint8Array(arrayBuffer);
-      const len = bytes.byteLength;
-      for (let i = 0; i < len; i++) {
-        binary += String.fromCharCode(bytes[i]);
-      }
-      const base64Font = window.btoa(binary);
-      doc.addFileToVFS('HindSiliguri.ttf', base64Font);
-      doc.addFont('HindSiliguri.ttf', 'HindSiliguri', 'normal');
-      return true;
-    } catch (err) {
-      console.error('Failed to load Bengali font:', err);
-      return false;
-    }
-  };
-
-  const exportToPDF = async () => {
+  const exportToPDF = () => {
     const doc = new jsPDF();
-    const hasBengali = await fetchAndAddBengaliFont(doc);
-    if (hasBengali) {
-      doc.setFont("HindSiliguri", "normal");
-    } else {
-      doc.setFont("Helvetica");
-    }
+    doc.addFileToVFS('HindSiliguri.ttf', HIND_SILIGURI_BASE64);
+    doc.addFont('HindSiliguri.ttf', 'HindSiliguri', 'normal');
+    doc.setFont("HindSiliguri", "normal");
     doc.setFontSize(16);
     doc.text("Paikgacha Technical Training Center (PTTC)", 14, 20);
     doc.setFontSize(11);
@@ -356,48 +335,33 @@ export function PortalAdmin({ students, refreshStudents }) {
         y = 20;
       }
       doc.setFontSize(10);
-      if (hasBengali) {
-        doc.setFont("HindSiliguri", "normal");
-      } else {
-        doc.setFont("Helvetica", "bold");
-      }
+      doc.setFont("HindSiliguri", "normal");
       doc.text(`${index + 1}. ${s.name || s.nameEnglishBlock || 'N/A'} (${s.id})`, 14, y);
       
-      if (hasBengali) {
-        doc.setFont("HindSiliguri", "normal");
-      } else {
-        doc.setFont("Helvetica", "normal");
-      }
+      doc.setFont("HindSiliguri", "normal");
       doc.setFontSize(8.5);
       
       doc.text(`Trade: ${s.trade} | Batch: ${s.batch} | Date: ${s.date} | Status: ${s.status}`, 14, y + 4.5);
       doc.text(`Bangla Name: ${s.nameBangla || 'N/A'} | NID/BR: ${s.nidBr || 'N/A'} | DOB: ${s.dob || 'N/A'} | Blood: ${s.bloodGroup || 'N/A'}`, 14, y + 8.5);
       doc.text(`Father's Name: ${s.fatherNameEnglish || 'N/A'} | Mother's Name: ${s.motherNameEnglish || 'N/A'}`, 14, y + 12.5);
+      doc.text(`Phone: ${s.phoneNo || 'N/A'} | Guardian Phone: ${s.guardianPhoneNo || 'N/A'}`, 14, y + 16.5);
 
-      if (hasBengali) {
-        doc.setFont("HindSiliguri", "normal");
-      } else {
-        doc.setFont("Helvetica", "bold");
-      }
-      doc.text(`No.3. Permanent Address:`, 14, y + 17.5);
-      doc.text(`No.4. Present Address:`, 105, y + 17.5);
+      doc.setFont("HindSiliguri", "normal");
+      doc.text(`No.3. Permanent Address:`, 14, y + 21.5);
+      doc.text(`No.4. Present Address:`, 105, y + 21.5);
       
-      if (hasBengali) {
-        doc.setFont("HindSiliguri", "normal");
-      } else {
-        doc.setFont("Helvetica", "normal");
-      }
-      doc.text(`Holding: ${s.permHoldingNo || 'N/A'}, ${s.permVillCity || 'N/A'}, Post: ${s.permPost || 'N/A'}, Thana: ${s.permThana || 'N/A'}, Dist: ${s.permDistrict || 'N/A'}`, 14, y + 21.5, { maxWidth: 85 });
-      doc.text(`Holding: ${s.presHoldingNo || 'N/A'}, ${s.presVillCity || 'N/A'}, Post: ${s.presPost || 'N/A'}, Thana: ${s.presThana || 'N/A'}, Dist: ${s.presDistrict || 'N/A'}`, 105, y + 21.5, { maxWidth: 85 });
+      doc.setFont("HindSiliguri", "normal");
+      doc.text(`Holding: ${s.permHoldingNo || 'N/A'}, ${s.permVillCity || 'N/A'}, Post: ${s.permPost || 'N/A'}, Thana: ${s.permThana || 'N/A'}, Dist: ${s.permDistrict || 'N/A'}`, 14, y + 25.5, { maxWidth: 85 });
+      doc.text(`Holding: ${s.presHoldingNo || 'N/A'}, ${s.presVillCity || 'N/A'}, Post: ${s.presPost || 'N/A'}, Thana: ${s.presThana || 'N/A'}, Dist: ${s.presDistrict || 'N/A'}`, 105, y + 25.5, { maxWidth: 85 });
 
-      doc.text(`Education: ${s.eduExamName || 'N/A'} - GPA: ${s.eduGpa || 'N/A'} (${s.eduPassingYear || 'N/A'} - ${s.eduBoardUniv || 'N/A'})`, 14, y + 31.5);
+      doc.text(`Education: ${s.eduExamName || 'N/A'} - GPA: ${s.eduGpa || 'N/A'} (${s.eduPassingYear || 'N/A'} - ${s.eduBoardUniv || 'N/A'})`, 14, y + 35.5);
       if (s.expName) {
-        doc.text(`Experience: ${s.expName} - ${s.expDesignation} (${s.expTimePeriod})`, 14, y + 35.5);
+        doc.text(`Experience: ${s.expName} - ${s.expDesignation} (${s.expTimePeriod})`, 14, y + 39.5);
+        doc.line(14, y + 43, 196, y + 43);
+        y += 48;
+      } else {
         doc.line(14, y + 39, 196, y + 39);
         y += 44;
-      } else {
-        doc.line(14, y + 35, 196, y + 35);
-        y += 40;
       }
     });
 
@@ -1004,6 +968,8 @@ export function PortalStudent({ students }) {
                 <div><strong className="text-slate-400">Nationality:</strong> {profile.nationality || 'N/A'}</div>
                 <div><strong className="text-slate-400">Blood Group:</strong> {profile.bloodGroup || 'N/A'}</div>
                 <div><strong className="text-slate-400">NID / BR No:</strong> {profile.nidBr || 'N/A'}</div>
+                <div><strong className="text-slate-400">Phone No:</strong> {profile.phoneNo || 'N/A'}</div>
+                <div><strong className="text-slate-400">Guardian Phone No:</strong> {profile.guardianPhoneNo || 'N/A'}</div>
               </div>
             </div>
 
@@ -1548,6 +1514,8 @@ export function Enrollment({ students, refreshStudents }) {
     nationality: 'Bangladeshi',
     bloodGroup: 'O+',
     nidBr: '',
+    phoneNo: '',
+    guardianPhoneNo: '',
     
     // Permanent Address
     permHoldingNo: '',
@@ -1615,6 +1583,11 @@ export function Enrollment({ students, refreshStudents }) {
       val = val.replace(/[^0-9]/g, '');
     }
     
+    // Restrict phone fields to digits, +, -
+    if (['phoneNo', 'guardianPhoneNo'].includes(name) && typeof val === 'string') {
+      val = val.replace(/[^0-9+\-]/g, '');
+    }
+    
     setFormData(prev => {
       const updated = { ...prev, [name]: val };
       
@@ -1677,7 +1650,7 @@ export function Enrollment({ students, refreshStudents }) {
   const handleNext = () => {
     // Simple page validation
     if (step === 1) {
-      if (!formData.trade || !formData.batch || !formData.nameEnglishBlock || !formData.nameBangla || !formData.fatherNameEnglish || !formData.motherNameEnglish || !formData.dob) {
+      if (!formData.trade || !formData.batch || !formData.nameEnglishBlock || !formData.nameBangla || !formData.fatherNameEnglish || !formData.motherNameEnglish || !formData.dob || !formData.phoneNo) {
         alert('Please fill out all mandatory fields in Institutional and Personal Information.');
         return;
       }
@@ -1707,7 +1680,16 @@ export function Enrollment({ students, refreshStudents }) {
       return;
     }
     
-    const id = `STU${Date.now().toString().slice(-4)}`;
+    const tradeCode = formData.trade.substring(0, 2).toUpperCase();
+    const maxNum = students.reduce((max, s) => {
+      const parts = s.id?.split('-');
+      if (parts && parts.length === 2) {
+        const num = parseInt(parts[1], 10);
+        return !isNaN(num) && num > max ? num : max;
+      }
+      return max;
+    }, 0);
+    const id = `STU${tradeCode}-${String(maxNum + 1).padStart(4, '0')}`;
     try {
       const res = await fetch('/api/students', {
         method: 'POST',
@@ -1743,6 +1725,8 @@ export function Enrollment({ students, refreshStudents }) {
           nationality: 'Bangladeshi',
           bloodGroup: 'O+',
           nidBr: '',
+          phoneNo: '',
+          guardianPhoneNo: '',
           permHoldingNo: '',
           permVillCity: '',
           permPost: '',
@@ -2070,6 +2054,29 @@ export function Enrollment({ students, refreshStudents }) {
                         value={formData.nidBr} 
                         onChange={handleChange}
                         required 
+                        className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm text-slate-800 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold block mb-1">Phone No *</label>
+                      <input 
+                        type="text" 
+                        name="phoneNo" 
+                        placeholder="Enter phone number"
+                        value={formData.phoneNo} 
+                        onChange={handleChange}
+                        required 
+                        className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm text-slate-800 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold block mb-1">Guardian Phone No</label>
+                      <input 
+                        type="text" 
+                        name="guardianPhoneNo" 
+                        placeholder="Enter guardian phone number"
+                        value={formData.guardianPhoneNo} 
+                        onChange={handleChange}
                         className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm text-slate-800 dark:text-white"
                       />
                     </div>
