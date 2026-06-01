@@ -31,7 +31,7 @@ function App() {
   
   // Custom Notice for Marquee
   const [notices] = useState(() => getStoredData('pttc_notices', [
-    "Admission is open for CBT Batch-46 (IT Support, Graphics, Welding).",
+    "Admission is open for BMET Regular (IT Support, Graphics, Welding).",
     "Pre-departure Orientation Program scheduled for expatriates on June 2nd, 2026."
   ]));
 

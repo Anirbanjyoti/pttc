@@ -44,8 +44,19 @@ export default function App() {
   // Custom Notice for Marquee (can remain in localStorage or local fallback)
   const [notices] = useState(() => {
     const localNotices = localStorage.getItem('pttc_notices');
-    return localNotices ? JSON.parse(localNotices) : [
-      "Admission is open for CBT Batch-46 (IT Support, Graphics, Welding).",
+    if (localNotices) {
+      const parsed = JSON.parse(localNotices);
+      // migrate old text
+      const updated = parsed.map(n =>
+        n.replace("Admission is open for CBT Batch-46 (IT Support, Graphics, Welding).", "Admission is open for BMET Regular (IT Support, Graphics, Welding).")
+      );
+      if (JSON.stringify(updated) !== localNotices) {
+        localStorage.setItem('pttc_notices', JSON.stringify(updated));
+      }
+      return updated;
+    }
+    return [
+      "Admission is open for BMET Regular (IT Support, Graphics, Welding).",
       "Pre-departure Orientation Program scheduled for expatriates on June 2nd, 2026."
     ];
   });

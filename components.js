@@ -43,7 +43,7 @@ export function PortalAdmin({ students, setStudents, firebaseConfig }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [newNotice, setNewNotice] = useState('');
   const [notices, setNotices] = useState(() => getStoredData('pttc_notices', [
-    "Admission is open for CBT Batch-46 (IT Support, Graphics, Welding).",
+    "Admission is open for BMET Regular (IT Support, Graphics, Welding).",
     "Pre-departure Orientation Program scheduled for expatriates on June 2nd, 2026."
   ]));
 
@@ -532,9 +532,9 @@ export function AssessmentTools() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fadeIn">
       <div className="lg:col-span-1 glass-panel p-6 rounded-2xl space-y-4">
-        <h3 className="text-xl font-bold text-teal-600">CBT/A Standards</h3>
+        <h3 className="text-xl font-bold text-teal-600">NSDA and CBTA Standards</h3>
         <p className="text-sm text-slate-500">
-          Bangladesh Technical Education Board (BTEB) Competency Standards focus on hands-on capabilities. Assessors look for proof of Competence (C) in real-world simulations.
+          NSDA and BTEB Competency Standards focus on hands-on capabilities. Assessors look for proof of Competence (C) in real-world simulations.
         </p>
         <div className="bg-slate-100 dark:bg-slate-800 p-4 rounded-xl text-xs space-y-2 text-slate-600 dark:text-slate-400">
           <p><strong>Step 1:</strong> Prepare Portfolio of Evidence.</p>
@@ -842,8 +842,8 @@ export function ProbasiSeba() {
 // 4. Video Tutorials Section
 export function VideoTutorials() {
   const videos = [
-    { title: "Automotive System Overhaul", trade: "Automotive Mechanics", url: "https://www.youtube.com/embed/dQw4w9WgXcQ" },
-    { title: "Responsive Web Layout Basics", trade: "IT Support", url: "https://www.youtube.com/embed/dQw4w9WgXcQ" },
+    { title: "Viva exam Driving License।। Traffic Sign", trade: "Automotive Mechanics", url: "https://www.youtube.com/embed/j-Uix4W3sDY?list=PLe-_6Kx3kbJYZShCQ6rISA5D4oWzsOxM-" },
+    { title: "What is IP Address? | Networking Basic Class - 01 | IT Support Level-3 (Bangla)", trade: "IT Support", url: "https://www.youtube.com/embed/TELxFICZNsQ" },
     { title: "BTEB CBT/A Exam Prep Guidelines", trade: "All Trades", url: "https://www.youtube.com/embed/dQw4w9WgXcQ" }
   ];
 
@@ -894,9 +894,9 @@ export function Contact() {
           Our friendly administration desk is available 9:00 AM - 5:00 PM (Saturday - Thursday).
         </p>
         <div className="space-y-3 text-sm text-slate-650 dark:text-slate-400">
-          <p><strong>Address:</strong> Shalgaria, Paikgacha-6600, Bangladesh</p>
-          <p><strong>Phone:</strong> +88-0731-66352</p>
-          <p><strong>Email:</strong> principal.pttc@gmail.com</p>
+          <p><strong>Address:</strong> Shivbati Bridge Road, Paikgacha-9280, Khulna</p>
+          <p><strong>Phone:</strong> +8801712404653</p>
+          <p><strong>Email:</strong> anirban.pttc@gmail.com</p>
         </div>
       </div>
 
