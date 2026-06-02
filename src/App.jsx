@@ -28,6 +28,8 @@ import {
   BookOpen,
   ChevronDown
 } from 'lucide-react';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from './firebase';
 
 
 export default function App() {
@@ -61,27 +63,17 @@ export default function App() {
     ];
   });
 
-  // Fetch student data from MongoDB backend
-  const fetchStudents = async () => {
-    try {
-      setLoading(true);
-      const res = await fetch('/api/students');
-      if (res.ok) {
-        const data = await res.json();
-        setStudents(data);
-      }
-    } catch (error) {
-      console.error('Error fetching students from backend:', error);
-    } finally {
-      // Limit loading state to a 3-second duration
-      setTimeout(() => {
-        setLoading(false);
-      }, 3000);
-    }
-  };
-
+  // Real-time Firestore listener for students collection
   useEffect(() => {
-    fetchStudents();
+    const unsubscribe = onSnapshot(collection(db, 'students'), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ ...doc.data() }));
+      setStudents(data);
+      setLoading(false);
+    }, (error) => {
+      console.error('Firestore error:', error);
+      setLoading(false);
+    });
+    return unsubscribe;
   }, []);
 
   useEffect(() => {
@@ -397,7 +389,7 @@ export default function App() {
                 )}
                 
                 {currentTab === 'Assessment Tools' && <AssessmentTools />}
-                {currentTab === 'Enrollment' && <Enrollment students={students} refreshStudents={fetchStudents} />}
+                {currentTab === 'Enrollment' && <Enrollment students={students} />}
                 {currentTab === 'Regular Tools' && <RegularTools />}
                 {currentTab === 'Probasi Seba' && <ProbasiSeba />}
                 {currentTab === 'Video Tutorials' && <VideoTutorials />}
@@ -408,10 +400,10 @@ export default function App() {
 
             {/* Portals */}
             {portalRole === 'Admin' && (
-              <PortalAdmin students={students} refreshStudents={fetchStudents} />
+              <PortalAdmin students={students} />
             )}
             {portalRole === 'Teacher' && (
-              <PortalTeacher students={students} refreshStudents={fetchStudents} />
+              <PortalTeacher students={students} />
             )}
             {portalRole === 'Student' && (
               <PortalStudent students={students} />

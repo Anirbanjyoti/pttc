@@ -7,7 +7,8 @@ import {
   signOut, 
   onAuthStateChanged 
 } from 'firebase/auth';
-import { auth } from './firebase';
+import { doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { auth, db } from './firebase';
 import { HIND_SILIGURI_BASE64 } from './fontBase64';
 import { 
   Award, 
@@ -63,7 +64,7 @@ const INITIAL_TEACHERS = [
 // -------------------------------------------------------------
 // ADMIN PORTAL
 // -------------------------------------------------------------
-export function PortalAdmin({ students, refreshStudents }) {
+export function PortalAdmin({ students }) {
   const [adminUser, setAdminUser] = useState(null);
   const [authMode, setAuthMode] = useState('login'); // login | reset
   const [email, setEmail] = useState('');
@@ -135,14 +136,7 @@ export function PortalAdmin({ students, refreshStudents }) {
   // CRUD Student Handlers (API / MongoDB integration)
   const handleStatusChange = async (id, nextStatus) => {
     try {
-      const res = await fetch(`/api/students/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: nextStatus })
-      });
-      if (res.ok) {
-        refreshStudents();
-      }
+      await updateDoc(doc(db, 'students', id), { status: nextStatus });
     } catch (err) {
       console.error('Error updating status:', err);
     }
@@ -151,10 +145,7 @@ export function PortalAdmin({ students, refreshStudents }) {
   const handleDeleteStudent = async (id) => {
     if (confirm("Are you sure you want to delete this student record?")) {
       try {
-        const res = await fetch(`/api/students/${id}`, { method: 'DELETE' });
-        if (res.ok) {
-          refreshStudents();
-        }
+        await deleteDoc(doc(db, 'students', id));
       } catch (err) {
         console.error('Error deleting student:', err);
       }
@@ -166,15 +157,8 @@ export function PortalAdmin({ students, refreshStudents }) {
     const fd = new FormData(e.target);
     const data = Object.fromEntries(fd.entries());
     try {
-      const res = await fetch(`/api/students/${editingStudent.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-      if (res.ok) {
-        refreshStudents();
-        setEditingStudent(null);
-      }
+      await updateDoc(doc(db, 'students', editingStudent.id), data);
+      setEditingStudent(null);
     } catch (err) {
       console.error('Error updating student details:', err);
     }
@@ -183,24 +167,29 @@ export function PortalAdmin({ students, refreshStudents }) {
   const handleAddStudent = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
-    try {
-      const res = await fetch('/api/students', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: formData.get('name'),
-          trade: formData.get('trade'),
-          batch: formData.get('batch'),
-          phone: formData.get('phone'),
-          email: formData.get('email'),
-          status: "Pending",
-          grade: "N/A"
-        })
-      });
-      if (res.ok) {
-        refreshStudents();
-        e.target.reset();
+    const maxNum = students.reduce((max, s) => {
+      const parts = s.id?.split('-');
+      if (parts && parts.length === 2) {
+        const num = parseInt(parts[1], 10);
+        return !isNaN(num) && num > max ? num : max;
       }
+      return max;
+    }, 0);
+    const tradeCode = (formData.get('trade') || 'IT').substring(0, 2).toUpperCase();
+    const id = `STU${tradeCode}-${String(maxNum + 1).padStart(4, '0')}`;
+    try {
+      await setDoc(doc(db, 'students', id), {
+        id,
+        name: formData.get('name'),
+        trade: formData.get('trade'),
+        batch: formData.get('batch'),
+        phone: formData.get('phone'),
+        email: formData.get('email'),
+        status: "Pending",
+        grade: "N/A",
+        date: new Date().toISOString().split('T')[0]
+      });
+      e.target.reset();
     } catch (err) {
       console.error('Error registering student:', err);
     }
@@ -999,7 +988,7 @@ export function PortalAdmin({ students, refreshStudents }) {
 // -------------------------------------------------------------
 // TEACHERS PORTAL
 // -------------------------------------------------------------
-export function PortalTeacher({ students, refreshStudents }) {
+export function PortalTeacher({ students }) {
   const [selectedBatch, setSelectedBatch] = useState('Batch-01');
   const [gradingStudent, setGradingStudent] = useState(null);
   const [gradeValue, setGradeValue] = useState('Competent');
@@ -1010,15 +999,8 @@ export function PortalTeacher({ students, refreshStudents }) {
     e.preventDefault();
     if (!gradingStudent) return;
     try {
-      const res = await fetch(`/api/students/${gradingStudent.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ grade: gradeValue })
-      });
-      if (res.ok) {
-        refreshStudents();
-        setGradingStudent(null);
-      }
+      await updateDoc(doc(db, 'students', gradingStudent.id), { grade: gradeValue });
+      setGradingStudent(null);
     } catch (err) {
       console.error('Error updating grade:', err);
     }
@@ -1725,7 +1707,7 @@ export function AboutUs() {
   );
 }
 
-export function Enrollment({ students, refreshStudents }) {
+export function Enrollment({ students }) {
   const [viewMode, setViewMode] = useState('menu'); // menu | apply | query
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
@@ -1921,69 +1903,60 @@ export function Enrollment({ students, refreshStudents }) {
     }, 0);
     const id = `STU${tradeCode}-${String(maxNum + 1).padStart(4, '0')}`;
     try {
-      const res = await fetch('/api/students', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          id,
-          phone: formData.phone || formData.nidBr || id, // fallback
-          email: formData.email || `${id.toLowerCase()}@pttc.edu`, // fallback
-          status: "Pending",
-          grade: "N/A"
-        })
+      await setDoc(doc(db, 'students', id), {
+        ...formData,
+        id,
+        phone: formData.phone || formData.nidBr || id,
+        email: formData.email || `${id.toLowerCase()}@pttc.edu`,
+        status: "Pending",
+        grade: "N/A",
+        date: new Date().toISOString().split('T')[0]
       });
-      if (res.ok) {
-        alert('You have successfully submitted your info');
-        setSuccessMsg(id);
-        setToast({ message: `Application Submitted Successfully! Your generated Application ID is ${id}.`, type: 'success' });
-        refreshStudents();
-        // Reset Form
-        setFormData({
-          trade: 'IT Support',
-          batch: 'Batch-01',
-          name: '',
-          nameBangla: '',
-          nameEnglishBlock: '',
-          fatherNameEnglish: '',
-          fatherNameBangla: '',
-          motherNameEnglish: '',
-          motherNameBangla: '',
-          dob: '',
-          gender: 'Male',
-          religion: 'Islam',
-          nationality: 'Bangladeshi',
-          bloodGroup: 'O+',
-          nidBr: '',
-          phoneNo: '',
-          guardianPhoneNo: '',
-          permHoldingNo: '',
-          permVillCity: '',
-          permPost: '',
-          permThana: '',
-          permDistrict: '',
-          sameAddress: false,
-          presHoldingNo: '',
-          presVillCity: '',
-          presPost: '',
-          presThana: '',
-          presDistrict: '',
-          eduExamName: 'SSC',
-          eduDivision: '1st',
-          eduGpa: '',
-          eduPassingYear: '',
-          eduBoardUniv: '',
-          expName: '',
-          expDesignation: '',
-          expResponsibility: '',
-          expTimePeriod: '',
-          photo: '',
-          signature: ''
-        });
-        setStep(1);
-      } else {
-        alert('Failed to submit application. Please try again.');
-      }
+      alert('You have successfully submitted your info');
+      setSuccessMsg(id);
+      setToast({ message: `Application Submitted Successfully! Your generated Application ID is ${id}.`, type: 'success' });
+      setFormData({
+        trade: 'IT Support',
+        batch: 'Batch-01',
+        name: '',
+        nameBangla: '',
+        nameEnglishBlock: '',
+        fatherNameEnglish: '',
+        fatherNameBangla: '',
+        motherNameEnglish: '',
+        motherNameBangla: '',
+        dob: '',
+        gender: 'Male',
+        religion: 'Islam',
+        nationality: 'Bangladeshi',
+        bloodGroup: 'O+',
+        nidBr: '',
+        phoneNo: '',
+        guardianPhoneNo: '',
+        permHoldingNo: '',
+        permVillCity: '',
+        permPost: '',
+        permThana: '',
+        permDistrict: '',
+        sameAddress: false,
+        presHoldingNo: '',
+        presVillCity: '',
+        presPost: '',
+        presThana: '',
+        presDistrict: '',
+        eduExamName: 'SSC',
+        eduDivision: '1st',
+        eduGpa: '',
+        eduPassingYear: '',
+        eduBoardUniv: '',
+        expName: '',
+        expDesignation: '',
+        expResponsibility: '',
+        expTimePeriod: '',
+        photo: '',
+        signature: ''
+      });
+      setStep(1);
     } catch (err) {
       console.error('Error submitting application form:', err);
       alert('Failed to submit application. Please try again.');
