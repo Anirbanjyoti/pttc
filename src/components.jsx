@@ -10,6 +10,8 @@ import {
 import { doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { HIND_SILIGURI_BASE64 } from './fontBase64';
+import Cropper from 'react-easy-crop';
+import 'react-easy-crop/react-easy-crop.css';
 import { 
   Award, 
   Megaphone, 
@@ -529,6 +531,10 @@ export function PortalAdmin({ students }) {
                   <option value="IT Support">IT Support</option>
                   <option value="Graphic Design">Graphic Design</option>
                   <option value="Automotive Mechanics">Automotive</option>
+                  <option value="Electrical Installation">Electrical Installation</option>
+                  <option value="Sewing Machine Operation">Sewing Machine Operation</option>
+                  <option value="English Language">English Language</option>
+                  <option value="Arabic Language">Arabic Language</option>
                 </select>
                 <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-850 border text-sm text-slate-850 dark:text-white">
                   <option value="All">All Status</option>
@@ -611,6 +617,8 @@ export function PortalAdmin({ students }) {
                   <option value="Automotive Mechanics">Automotive Mechanics</option>
                   <option value="Electrical Installation">Electrical Installation</option>
                   <option value="Sewing Machine Operation">Sewing Machine Operation</option>
+                  <option value="English Language">English Language</option>
+                  <option value="Arabic Language">Arabic Language</option>
                 </select>
                 <input name="email" type="email" placeholder="Email Address" required className="w-full px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border text-sm text-slate-850 dark:text-white" />
                 <input name="phone" type="text" placeholder="Phone Number" required className="w-full px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border text-sm text-slate-850 dark:text-white" />
@@ -677,6 +685,8 @@ export function PortalAdmin({ students }) {
                       <option value="Automotive Mechanics">Automotive Mechanics</option>
                       <option value="Electrical Installation">Electrical Installation</option>
                       <option value="Sewing Machine Operation">Sewing Machine Operation</option>
+                      <option value="English Language">English Language</option>
+                      <option value="Arabic Language">Arabic Language</option>
                     </select>
                   </div>
                   <div>
@@ -963,6 +973,8 @@ export function PortalAdmin({ students }) {
                   <option value="Automotive Mechanics">Automotive Mechanics</option>
                   <option value="Electrical Installation">Electrical Installation</option>
                   <option value="Sewing Machine Operation">Sewing Machine Operation</option>
+                  <option value="English Language">English Language</option>
+                  <option value="Arabic Language">Arabic Language</option>
                 </select>
               </div>
               <div>
@@ -989,11 +1001,84 @@ export function PortalAdmin({ students }) {
 // TEACHERS PORTAL
 // -------------------------------------------------------------
 export function PortalTeacher({ students }) {
+  const [teacherUser, setTeacherUser] = useState(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [authMode, setAuthMode] = useState('login');
+  const [resetEmail, setResetEmail] = useState('');
+  const [teachers] = useState(() => getStoredData('pttc_teachers', INITIAL_TEACHERS));
+
   const [selectedBatch, setSelectedBatch] = useState('Batch-01');
   const [gradingStudent, setGradingStudent] = useState(null);
   const [gradeValue, setGradeValue] = useState('Competent');
 
-  const batchStudents = students.filter(s => s.batch === selectedBatch);
+  // Monitor Firebase Auth
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setTeacherUser(user);
+    });
+    return unsubscribe;
+  }, []);
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setError('');
+    try {
+      const cred = await signInWithEmailAndPassword(auth, email, password);
+      const matched = teachers.find(t => t.email === cred.user.email);
+      if (!matched) {
+        await signOut(auth);
+        setError(`No teacher account found for "${cred.user.email}". Contact Admin to add you to the Teachers Directory.`);
+      }
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'Invalid credentials.');
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    if (!resetEmail) {
+      setError('Please enter your teacher email address.');
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, resetEmail);
+      setSuccess('Password reset link sent! Please check your email inbox/spam folder.');
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'Failed to send password reset email.');
+    }
+  };
+
+  // Check if logged-in user matches a teacher record
+  const teacherInfo = teacherUser
+    ? teachers.find(t => t.email === teacherUser.email)
+    : null;
+
+  // Filter students by this teacher's trade
+  const myTrade = teacherInfo?.trade || '';
+  const myStudents = myTrade
+    ? students.filter(s => s.trade === myTrade)
+    : [];
+
+  // Further filter by selected batch
+  const batchStudents = myStudents.filter(s => s.batch === selectedBatch);
+
+  // Collect available batches from this teacher's students
+  const availableBatches = [...new Set(myStudents.map(s => s.batch))].sort();
 
   const handleGradeSubmit = async (e) => {
     e.preventDefault();
@@ -1006,37 +1091,107 @@ export function PortalTeacher({ students }) {
     }
   };
 
+  // === AUTH GATE: Show login form if not authenticated ===
+  if (!teacherUser || !teacherInfo) {
+    return (
+      <div className="max-w-md mx-auto my-12 animate-fadeIn">
+        <div className="glass-panel p-8 rounded-3xl border border-teal-500/20 shadow-2xl relative overflow-hidden">
+          <div className="text-center mb-6">
+            <span className="text-xs px-2.5 py-1 bg-teal-500/10 text-teal-700 rounded-full font-bold uppercase">Secured Teacher Portal</span>
+            <h3 className="text-2xl font-extrabold mt-3 text-slate-800 dark:text-slate-100">PTTC Teacher Login</h3>
+            <p className="text-xs text-slate-500 mt-1">Sign in with your registered teacher email</p>
+          </div>
+
+          {error && <div className="p-3 mb-4 text-xs font-semibold text-rose-600 bg-rose-500/10 rounded-xl border border-rose-500/15">{error}</div>}
+          {success && <div className="p-3 mb-4 text-xs font-semibold text-emerald-600 bg-emerald-500/10 rounded-xl border border-emerald-500/15">{success}</div>}
+
+          {authMode === 'login' ? (
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label className="text-xs font-bold block mb-1 text-slate-650 dark:text-slate-300">Teacher Email</label>
+                <input type="email" placeholder="teacher@pttc.edu" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm border dark:border-slate-700" />
+              </div>
+              <div>
+                <label className="text-xs font-bold block mb-1 text-slate-650 dark:text-slate-300">Password</label>
+                <input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm border dark:border-slate-700" />
+              </div>
+              <button type="submit" className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl transition shadow">
+                Authenticate Teacher
+              </button>
+              <p className="text-xs text-center text-slate-500 mt-4">
+                Forgot your password?{' '}
+                <button type="button" onClick={() => { setAuthMode('reset'); setError(''); setSuccess(''); }} className="text-teal-600 font-bold hover:underline">Reset Here</button>
+              </p>
+            </form>
+          ) : (
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              <div>
+                <label className="text-xs font-bold block mb-1 text-slate-650 dark:text-slate-300">Teacher Email Address</label>
+                <input type="email" placeholder="teacher@pttc.edu" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} required className="w-full px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm border dark:border-slate-700" />
+              </div>
+              <button type="submit" className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl transition shadow">
+                Send Password Reset Link
+              </button>
+              <p className="text-xs text-center text-slate-500 mt-4">
+                Remember your password?{' '}
+                <button type="button" onClick={() => { setAuthMode('login'); setError(''); setSuccess(''); }} className="text-teal-600 font-bold hover:underline">Sign In</button>
+              </p>
+            </form>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // === DASHBOARD (Authenticated + Trade Found) ===
   return (
     <div className="space-y-6 animate-fadeIn">
+      {/* Teacher Header */}
+      <div className="glass-panel p-4 px-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 border border-teal-500/10">
+        <div>
+          <span className="text-xs text-teal-600 font-bold tracking-wider uppercase">Authenticated Session</span>
+          <h2 className="text-lg font-bold text-slate-850 dark:text-slate-150">
+            Welcome, {teacherInfo.name} — {teacherInfo.trade} Department
+          </h2>
+          <p className="text-xs text-slate-400">{myStudents.length} student(s) in your trade</p>
+        </div>
+        <button
+          onClick={handleLogout}
+          className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-rose-500/10 hover:text-rose-600 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold transition-all"
+        >
+          Sign Out
+        </button>
+      </div>
+
+      {/* Batch Selector */}
       <div className="glass-panel p-6 rounded-2xl">
         <h2 className="text-xl font-bold text-teal-600 dark:text-teal-400 flex items-center gap-2">
           <Award className="w-6 h-6" /> Teacher Assessment Dashboard
         </h2>
-        <p className="text-sm text-slate-500 mt-1">Review batch registries and assess competency values.</p>
+        <p className="text-sm text-slate-500 mt-1">Review batch registries and assess competency values for {myTrade}.</p>
 
         <div className="mt-6 flex items-center gap-4">
           <label className="text-sm font-semibold">Select Batch Folder:</label>
-          <select 
-            value={selectedBatch} 
+          <select
+            value={selectedBatch}
             onChange={(e) => setSelectedBatch(e.target.value)}
             className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-medium"
           >
-            {Array.from({ length: 100 }, (_, i) => {
-              const num = String(i + 1).padStart(2, '0');
-              const val = `Batch-${num}`;
-              return (
-                <option key={val} value={val}>
-                  Batch {num}
-                </option>
-              );
-            })}
+            {availableBatches.length > 0 ? (
+              availableBatches.map(batch => (
+                <option key={batch} value={batch}>{batch}</option>
+              ))
+            ) : (
+              <option value="">No batches available</option>
+            )}
           </select>
         </div>
       </div>
 
+      {/* Student List + Grading Panel */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 glass-panel p-6 rounded-2xl">
-          <h3 className="font-bold mb-4">Competency Student Roll</h3>
+          <h3 className="font-bold mb-4">Competency Student Roll — {myTrade}</h3>
           <div className="divide-y divide-slate-100 dark:divide-slate-800">
             {batchStudents.map(student => (
               <div key={student.id} className="py-4 flex items-center justify-between">
@@ -1050,7 +1205,7 @@ export function PortalTeacher({ students }) {
                   }`}>
                     Grade: {student.grade}
                   </span>
-                  <button 
+                  <button
                     onClick={() => { setGradingStudent(student); setGradeValue(student.grade); }}
                     className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-bold transition"
                   >
@@ -1060,7 +1215,7 @@ export function PortalTeacher({ students }) {
               </div>
             ))}
             {batchStudents.length === 0 && (
-              <div className="text-center py-8 text-slate-400">No active students in {selectedBatch}</div>
+              <div className="text-center py-8 text-slate-400">No students in {selectedBatch} for {myTrade}</div>
             )}
           </div>
         </div>
@@ -1073,7 +1228,7 @@ export function PortalTeacher({ students }) {
               <form onSubmit={handleGradeSubmit} className="space-y-4">
                 <div>
                   <label className="text-xs font-bold text-slate-400 block mb-1">Competency Mark</label>
-                  <select 
+                  <select
                     value={gradeValue}
                     onChange={(e) => setGradeValue(e.target.value)}
                     className="w-full px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border"
@@ -1707,6 +1862,98 @@ export function AboutUs() {
   );
 }
 
+// Crop helpers
+const createImage = (url) =>
+  new Promise((resolve, reject) => {
+    const image = new Image();
+    image.addEventListener('load', () => resolve(image));
+    image.addEventListener('error', (error) => reject(error));
+    image.setAttribute('crossOrigin', 'anonymous');
+    image.src = url;
+  });
+
+async function getCroppedImg(imageSrc, pixelCrop, targetW, targetH) {
+  const image = await createImage(imageSrc);
+  const canvas = document.createElement('canvas');
+  canvas.width = targetW;
+  canvas.height = targetH;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(image, pixelCrop.x, pixelCrop.y, pixelCrop.width, pixelCrop.height, 0, 0, targetW, targetH);
+  return canvas.toDataURL('image/jpeg', 0.95);
+}
+
+function CropModal({ imageSrc, aspect, onCropComplete, onCancel }) {
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+
+  const handleConfirm = async () => {
+    try {
+      const cropped = await getCroppedImg(
+        imageSrc,
+        croppedAreaPixels,
+        aspect >= 1 ? 300 : 300,
+        aspect >= 1 ? 300 : 80
+      );
+      onCropComplete(cropped);
+    } catch (e) {
+      console.error('Crop error:', e);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden border border-slate-200 dark:border-slate-800">
+        <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+          <h3 className="font-extrabold text-slate-850 dark:text-white text-lg">Crop Image</h3>
+          <button onClick={onCancel} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="relative w-full h-80 bg-slate-900">
+          <Cropper
+            image={imageSrc}
+            crop={crop}
+            zoom={zoom}
+            aspect={aspect}
+            onCropChange={setCrop}
+            onZoomChange={setZoom}
+            onCropComplete={(_, croppedAreaPixels) => setCroppedAreaPixels(croppedAreaPixels)}
+          />
+        </div>
+        <div className="p-4 space-y-4">
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-bold text-slate-500">Zoom</span>
+            <input
+              type="range"
+              min={1}
+              max={3}
+              step={0.1}
+              value={zoom}
+              onChange={(e) => setZoom(Number(e.target.value))}
+              className="flex-1 accent-teal-600"
+            />
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={onCancel}
+              className="flex-1 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-sm font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirm}
+              className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-teal-600 to-sky-600 text-white text-sm font-bold hover:from-teal-700 hover:to-sky-700 transition shadow-lg"
+            >
+              Crop & Confirm
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Enrollment({ students }) {
   const [viewMode, setViewMode] = useState('menu'); // menu | apply | query
   const [step, setStep] = useState(1);
@@ -1768,6 +2015,9 @@ export function Enrollment({ students }) {
   const [successMsg, setSuccessMsg] = useState(null);
   const [photoError, setPhotoError] = useState('');
   const [sigError, setSigError] = useState('');
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [cropImageSrc, setCropImageSrc] = useState(null);
+  const [cropType, setCropType] = useState(null);
   const [toast, setToast] = useState(null);
 
   // Auto-dismiss toast after 5 seconds
@@ -1823,7 +2073,7 @@ export function Enrollment({ students }) {
     });
   };
 
-  // Handle file uploads with base64 conversion
+  // Handle file uploads — open crop modal
   const handleFileChange = (e, type) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -1836,27 +2086,30 @@ export function Enrollment({ students }) {
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        if (type === 'photo') {
-          if (img.width !== 300 || img.height !== 300) {
-            setPhotoError(`Image is ${img.width}x${img.height}. Requirements specify exactly 300x300.`);
-          } else {
-            setPhotoError('');
-          }
-          setFormData(prev => ({ ...prev, photo: event.target.result }));
-        } else {
-          if (img.width !== 300 || img.height !== 80) {
-            setSigError(`Image is ${img.width}x${img.height}. Requirements specify exactly 300x80.`);
-          } else {
-            setSigError('');
-          }
-          setFormData(prev => ({ ...prev, signature: event.target.result }));
-        }
-      };
-      img.src = event.target.result;
+      setCropImageSrc(event.target.result);
+      setCropType(type);
+      setCropModalOpen(true);
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleCropComplete = (croppedDataUrl) => {
+    if (cropType === 'photo') {
+      setPhotoError('');
+      setFormData(prev => ({ ...prev, photo: croppedDataUrl }));
+    } else {
+      setSigError('');
+      setFormData(prev => ({ ...prev, signature: croppedDataUrl }));
+    }
+    setCropModalOpen(false);
+    setCropImageSrc(null);
+    setCropType(null);
+  };
+
+  const handleCropCancel = () => {
+    setCropModalOpen(false);
+    setCropImageSrc(null);
+    setCropType(null);
   };
 
   const handleNext = () => {
@@ -2083,6 +2336,8 @@ export function Enrollment({ students }) {
                         <option value="Automotive Mechanics">Motor Driving</option>
                         <option value="Electrical Installation">Electrical Installation and Maintenance</option>
                         <option value="Sewing Machine Operation">Sewing Machine Operation</option>
+                        <option value="English Language">English Language</option>
+                        <option value="Arabic Language">Arabic Language</option>
                       </select>
                     </div>
                     <div>
@@ -2656,6 +2911,16 @@ export function Enrollment({ students }) {
 
                   </div>
                 </div>
+
+                {/* Crop Modal */}
+                {cropModalOpen && (
+                  <CropModal
+                    imageSrc={cropImageSrc}
+                    aspect={cropType === 'photo' ? 1 : 300 / 80}
+                    onCropComplete={handleCropComplete}
+                    onCancel={handleCropCancel}
+                  />
+                )}
 
                 {/* No.08. Full application Review Page */}
                 <div className="space-y-4">

@@ -3,12 +3,12 @@ import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDX3RoR4mIf2cXa0cK4T1qclqOvOPhVaH4",
-  authDomain: "anirban-pttc.firebaseapp.com",
-  projectId: "anirban-pttc",
-  storageBucket: "anirban-pttc.firebasestorage.app",
-  messagingSenderId: "425911059790",
-  appId: "1:425911059790:web:03bae520b51bde249eca1f"
+  apiKey: "AIzaSyAJy0Ay-Ee25U7Ie4_msRwgJf1RHR_vNJA",
+  authDomain: "pttc-portal.firebaseapp.com",
+  projectId: "pttc-portal",
+  storageBucket: "pttc-portal.firebasestorage.app",
+  messagingSenderId: "1088653711022",
+  appId: "1:1088653711022:web:a661a79e2155e1744aff3f"
 };
 
 const app = initializeApp(firebaseConfig);
