@@ -1010,9 +1010,17 @@ export function PortalTeacher({ students }) {
   const [resetEmail, setResetEmail] = useState('');
   const [teachers] = useState(() => getStoredData('pttc_teachers', INITIAL_TEACHERS));
 
-  const [selectedBatch, setSelectedBatch] = useState('Batch-01');
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterBatch, setFilterBatch] = useState('All');
+  const [filterStatus, setFilterStatus] = useState('All');
+  const [editingStudent, setEditingStudent] = useState(null);
   const [gradingStudent, setGradingStudent] = useState(null);
   const [gradeValue, setGradeValue] = useState('Competent');
+  const [notices] = useState(() => getStoredData('pttc_notices', [
+    "Admission is open for BMET Regular (IT Support, Graphics, Welding).",
+    "Pre-departure Orientation Program scheduled for expatriates on June 2nd, 2026."
+  ]));
 
   // Monitor Firebase Auth
   useEffect(() => {
@@ -1063,22 +1071,150 @@ export function PortalTeacher({ students }) {
     }
   };
 
-  // Check if logged-in user matches a teacher record
   const teacherInfo = teacherUser
     ? teachers.find(t => t.email === teacherUser.email)
     : null;
 
-  // Filter students by this teacher's trade
   const myTrade = teacherInfo?.trade || '';
   const myStudents = myTrade
     ? students.filter(s => s.trade === myTrade)
     : [];
 
-  // Further filter by selected batch
-  const batchStudents = myStudents.filter(s => s.batch === selectedBatch);
-
-  // Collect available batches from this teacher's students
   const availableBatches = [...new Set(myStudents.map(s => s.batch))].sort();
+
+  const filteredStudents = myStudents.filter(s => {
+    const matchBatch = filterBatch === 'All' || s.batch === filterBatch;
+    const matchStatus = filterStatus === 'All' || s.status === filterStatus;
+    const matchSearch = (s.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        (s.id || '').toLowerCase().includes(searchTerm.toLowerCase());
+    return matchBatch && matchStatus && matchSearch;
+  });
+
+  const handleAddStudent = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const maxNum = students.reduce((max, s) => {
+      const parts = s.id?.split('-');
+      if (parts && parts.length === 2) {
+        const num = parseInt(parts[1], 10);
+        return !isNaN(num) && num > max ? num : max;
+      }
+      return max;
+    }, 0);
+    const tradeCode = myTrade.substring(0, 2).toUpperCase();
+    const id = `STU${tradeCode}-${String(maxNum + 1).padStart(4, '0')}`;
+    try {
+      const data = Object.fromEntries(fd.entries());
+      await setDoc(doc(db, 'students', id), { ...data, id, trade: myTrade, date: new Date().toISOString().split('T')[0] });
+      setEditingStudent(null);
+    } catch (err) {
+      console.error('Error adding student:', err);
+    }
+  };
+
+  const handleUpdateStudent = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const data = Object.fromEntries(fd.entries());
+    try {
+      await updateDoc(doc(db, 'students', editingStudent.id), data);
+      setEditingStudent(null);
+    } catch (err) {
+      console.error('Error updating student:', err);
+    }
+  };
+
+  const handleDeleteStudent = async (id) => {
+    if (confirm("Are you sure you want to delete this student record?")) {
+      try {
+        await deleteDoc(doc(db, 'students', id));
+      } catch (err) {
+        console.error('Error deleting student:', err);
+      }
+    }
+  };
+
+  const exportToExcel = () => {
+    const dataToExport = filteredStudents.map((s) => ({
+      "Student ID": s.id,
+      "Name (English)": s.name || s.nameEnglishBlock || "",
+      "Name (Bangla)": s.nameBangla || "",
+      "Father's Name (English)": s.fatherNameEnglish || "",
+      "Father's Name (Bangla)": s.fatherNameBangla || "",
+      "Mother's Name (English)": s.motherNameEnglish || "",
+      "Mother's Name (Bangla)": s.motherNameBangla || "",
+      "DOB": s.dob || "",
+      "Gender": s.gender || "",
+      "Religion": s.religion || "",
+      "Nationality": s.nationality || "",
+      "Blood Group": s.bloodGroup || "",
+      "NID/BR": s.nidBr || "",
+      "Phone No": s.phoneNo || "",
+      "Guardian Phone No": s.guardianPhoneNo || "",
+      "No.3. Permanent Address": [s.permHoldingNo ? `Holding No: ${s.permHoldingNo}` : '', s.permVillCity ? `Village/City: ${s.permVillCity}` : '', s.permPost ? `Post Office: ${s.permPost}` : '', s.permThana ? `Thana: ${s.permThana}` : '', s.permDistrict ? `District: ${s.permDistrict}` : ''].filter(Boolean).join(', ') || "",
+      "No.4. Present Address": [s.presHoldingNo ? `Holding No: ${s.presHoldingNo}` : '', s.presVillCity ? `Village/City: ${s.presVillCity}` : '', s.presPost ? `Post Office: ${s.presPost}` : '', s.presThana ? `Thana: ${s.presThana}` : '', s.presDistrict ? `District: ${s.presDistrict}` : ''].filter(Boolean).join(', ') || "",
+      "Exam Name": s.eduExamName || "",
+      "Division/Class": s.eduDivision || "",
+      "GPA/Marks": s.eduGpa || "",
+      "Passing Year": s.eduPassingYear || "",
+      "Board/University": s.eduBoardUniv || "",
+      "Exp. Organization": s.expName || "",
+      "Exp. Designation": s.expDesignation || "",
+      "Exp. Responsibilities": s.expResponsibility || "",
+      "Exp. Duration": s.expTimePeriod || "",
+      "Trade/Course": s.trade || "",
+      "Batch": s.batch || "",
+      "Status": s.status || "",
+      "CBT Grade": s.grade || "",
+      "Enrollment Date": s.date || ""
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "PTTC Students");
+    XLSX.writeFile(workbook, `PTTC_${myTrade.replace(/\s+/g, '_')}_Students_Report.xlsx`);
+  };
+
+  const exportToPDF = () => {
+    const doc = new jsPDF();
+    doc.addFileToVFS('HindSiliguri.ttf', HIND_SILIGURI_BASE64);
+    doc.addFont('HindSiliguri.ttf', 'HindSiliguri', 'normal');
+    doc.setFont("HindSiliguri", "normal");
+    doc.setFontSize(16);
+    doc.text("Paikgacha Technical Training Center (PTTC)", 14, 20);
+    doc.setFontSize(11);
+    doc.text(`Student Detailed Enrollment Report — ${myTrade}`, 14, 27);
+    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 33);
+    doc.line(14, 36, 196, 36);
+    let y = 43;
+    filteredStudents.forEach((s, index) => {
+      if (y > 220) { doc.addPage(); y = 20; }
+      doc.setFontSize(10);
+      doc.setFont("HindSiliguri", "normal");
+      doc.text(`${index + 1}. ${s.name || s.nameEnglishBlock || 'N/A'} (${s.id})`, 14, y);
+      doc.setFont("HindSiliguri", "normal");
+      doc.setFontSize(8.5);
+      doc.text(`Trade: ${s.trade} | Batch: ${s.batch} | Date: ${s.date} | Status: ${s.status}`, 14, y + 4.5);
+      doc.text(`Bangla Name: ${s.nameBangla || 'N/A'} | NID/BR: ${s.nidBr || 'N/A'} | DOB: ${s.dob || 'N/A'} | Blood: ${s.bloodGroup || 'N/A'}`, 14, y + 8.5);
+      doc.text(`Father's Name: ${s.fatherNameEnglish || 'N/A'} | Mother's Name: ${s.motherNameEnglish || 'N/A'}`, 14, y + 12.5);
+      doc.text(`Phone: ${s.phoneNo || 'N/A'} | Guardian Phone: ${s.guardianPhoneNo || 'N/A'}`, 14, y + 16.5);
+      doc.setFont("HindSiliguri", "normal");
+      doc.text(`No.3. Permanent Address:`, 14, y + 21.5);
+      doc.text(`No.4. Present Address:`, 105, y + 21.5);
+      doc.setFont("HindSiliguri", "normal");
+      doc.text(`Holding: ${s.permHoldingNo || 'N/A'}, ${s.permVillCity || 'N/A'}, Post: ${s.permPost || 'N/A'}, Thana: ${s.permThana || 'N/A'}, Dist: ${s.permDistrict || 'N/A'}`, 14, y + 25.5, { maxWidth: 85 });
+      doc.text(`Holding: ${s.presHoldingNo || 'N/A'}, ${s.presVillCity || 'N/A'}, Post: ${s.presPost || 'N/A'}, Thana: ${s.presThana || 'N/A'}, Dist: ${s.presDistrict || 'N/A'}`, 105, y + 25.5, { maxWidth: 85 });
+      doc.text(`Education: ${s.eduExamName || 'N/A'} - GPA: ${s.eduGpa || 'N/A'} (${s.eduPassingYear || 'N/A'} - ${s.eduBoardUniv || 'N/A'})`, 14, y + 35.5);
+      if (s.expName) {
+        doc.text(`Experience: ${s.expName} - ${s.expDesignation} (${s.expTimePeriod})`, 14, y + 39.5);
+        doc.line(14, y + 43, 196, y + 43);
+        y += 48;
+      } else {
+        doc.line(14, y + 39, 196, y + 39);
+        y += 44;
+      }
+    });
+    doc.save(`PTTC_${myTrade.replace(/\s+/g, '_')}_Students_Report.pdf`);
+  };
 
   const handleGradeSubmit = async (e) => {
     e.preventDefault();
@@ -1144,6 +1280,13 @@ export function PortalTeacher({ students }) {
   }
 
   // === DASHBOARD (Authenticated + Trade Found) ===
+  const tradeStats = {
+    total: myStudents.length,
+    pending: myStudents.filter(s => s.status === 'Pending').length,
+    approved: myStudents.filter(s => s.status === 'Approved').length,
+    batches: availableBatches.length
+  };
+
   return (
     <div className="space-y-6 animate-fadeIn">
       {/* Teacher Header */}
@@ -1163,76 +1306,154 @@ export function PortalTeacher({ students }) {
         </button>
       </div>
 
-      {/* Batch Selector */}
-      <div className="glass-panel p-6 rounded-2xl">
-        <h2 className="text-xl font-bold text-teal-600 dark:text-teal-400 flex items-center gap-2">
-          <Award className="w-6 h-6" /> Teacher Assessment Dashboard
-        </h2>
-        <p className="text-sm text-slate-500 mt-1">Review batch registries and assess competency values for {myTrade}.</p>
-
-        <div className="mt-6 flex items-center gap-4">
-          <label className="text-sm font-semibold">Select Batch Folder:</label>
-          <select
-            value={selectedBatch}
-            onChange={(e) => setSelectedBatch(e.target.value)}
-            className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-medium"
-          >
-            {availableBatches.length > 0 ? (
-              availableBatches.map(batch => (
-                <option key={batch} value={batch}>{batch}</option>
-              ))
-            ) : (
-              <option value="">No batches available</option>
-            )}
-          </select>
-        </div>
+      {/* Tab Navigation */}
+      <div className="flex border-b border-slate-200 dark:border-slate-850 gap-4">
+        <button onClick={() => setActiveTab('dashboard')} className={`pb-3 font-bold text-sm border-b-2 transition-all ${activeTab === 'dashboard' ? 'border-teal-600 text-teal-600' : 'border-transparent text-slate-500'}`}>Dashboard & Notices</button>
+        <button onClick={() => setActiveTab('students')} className={`pb-3 font-bold text-sm border-b-2 transition-all ${activeTab === 'students' ? 'border-teal-600 text-teal-600' : 'border-transparent text-slate-500'}`}>Students Registry ({myStudents.length})</button>
       </div>
 
-      {/* Student List + Grading Panel */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 glass-panel p-6 rounded-2xl">
-          <h3 className="font-bold mb-4">Competency Student Roll — {myTrade}</h3>
-          <div className="divide-y divide-slate-100 dark:divide-slate-800">
-            {batchStudents.map(student => (
-              <div key={student.id} className="py-4 flex items-center justify-between">
-                <div>
-                  <div className="font-semibold">{student.name}</div>
-                  <div className="text-xs text-slate-400">{student.trade} | ID: {student.id}</div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className={`px-2 py-1 rounded text-xs font-bold ${
-                    student.grade === 'Competent' || student.grade === 'A+' || student.grade === 'A-' ? 'bg-teal-100 text-teal-800' : 'bg-slate-100 text-slate-800'
-                  }`}>
-                    Grade: {student.grade}
-                  </span>
-                  <button
-                    onClick={() => { setGradingStudent(student); setGradeValue(student.grade); }}
-                    className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-bold transition"
-                  >
-                    Grade Competency
-                  </button>
-                </div>
-              </div>
-            ))}
-            {batchStudents.length === 0 && (
-              <div className="text-center py-8 text-slate-400">No students in {selectedBatch} for {myTrade}</div>
-            )}
+      {/* === TAB: Dashboard & Notices === */}
+      {activeTab === 'dashboard' && (
+        <div className="space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="glass-panel p-6 rounded-2xl border border-teal-500/20">
+              <div className="text-slate-400 text-sm font-semibold">TOTAL STUDENTS ({myTrade})</div>
+              <div className="text-4xl font-extrabold text-teal-600 dark:text-teal-400 mt-2">{tradeStats.total}</div>
+            </div>
+            <div className="glass-panel p-6 rounded-2xl border border-amber-500/20">
+              <div className="text-slate-400 text-sm font-semibold">PENDING APPROVALS</div>
+              <div className="text-4xl font-extrabold text-amber-500 mt-2">{tradeStats.pending}</div>
+            </div>
+            <div className="glass-panel p-6 rounded-2xl border border-emerald-500/20">
+              <div className="text-slate-400 text-sm font-semibold">APPROVED STUDENTS</div>
+              <div className="text-4xl font-extrabold text-emerald-500 mt-2">{tradeStats.approved}</div>
+            </div>
+            <div className="glass-panel p-6 rounded-2xl border border-blue-500/20">
+              <div className="text-slate-400 text-sm font-semibold">TOTAL BATCHES</div>
+              <div className="text-4xl font-extrabold text-blue-500 mt-2">{tradeStats.batches}</div>
+            </div>
+          </div>
+
+          <div className="glass-panel p-6 rounded-2xl">
+            <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><Megaphone className="w-5 h-5 text-teal-500" /> Notice Archive</h3>
+            <div className="space-y-3">
+              {notices.map((n, i) => (
+                <div key={i} className="p-3 bg-slate-100 dark:bg-slate-850 rounded-xl text-sm font-medium">{n}</div>
+              ))}
+            </div>
           </div>
         </div>
+      )}
 
-        <div className="lg:col-span-1">
-          {gradingStudent ? (
-            <div className="glass-panel p-6 rounded-2xl border border-teal-500/25 animate-fadeIn">
+      {/* === TAB: Students Registry === */}
+      {activeTab === 'students' && (
+        <div className="space-y-6">
+          {/* Header Row */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <h3 className="text-xl font-bold">Students Registry ({myStudents.length})</h3>
+            <div className="flex items-center gap-2">
+              <button onClick={exportToExcel} className="px-4 py-2 text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg flex items-center gap-1 font-bold shadow">
+                <FileSpreadsheet className="w-4 h-4" /> Excel
+              </button>
+              <button onClick={exportToPDF} className="px-4 py-2 text-xs bg-rose-600 hover:bg-rose-700 text-white rounded-lg flex items-center gap-1 font-bold shadow">
+                <FileText className="w-4 h-4" /> PDF
+              </button>
+              <button
+                onClick={() => setEditingStudent('new')}
+                className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs transition shadow flex items-center gap-2"
+              >
+                <UserPlus className="w-4 h-4" /> Add New
+              </button>
+            </div>
+          </div>
+
+          {/* Filters */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <input
+              type="text" placeholder="Search by name or ID..." value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm"
+            />
+            <select value={filterBatch} onChange={(e) => setFilterBatch(e.target.value)} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm">
+              <option value="All">All Batches</option>
+              {availableBatches.map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm">
+              <option value="All">All Status</option>
+              <option value="Pending">Pending</option>
+              <option value="Approved">Approved</option>
+              <option value="Completed">Completed</option>
+            </select>
+          </div>
+
+          {/* Student Table */}
+          <div className="glass-panel rounded-2xl overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-slate-100 dark:bg-slate-850 text-slate-500 font-bold">
+                <tr>
+                  <th className="text-left p-3">Sl No</th>
+                  <th className="text-left p-3">Photo</th>
+                  <th className="text-left p-3">Student Info</th>
+                  <th className="text-left p-3">NID/BR</th>
+                  <th className="text-left p-3">Batch</th>
+                  <th className="text-left p-3">Status</th>
+                  <th className="text-left p-3">Grade</th>
+                  <th className="text-center p-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {filteredStudents.map((s, idx) => (
+                  <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-850/50">
+                    <td className="p-3">{idx + 1}</td>
+                    <td className="p-3">
+                      <div className="w-10 h-10 rounded-lg overflow-hidden border bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                        {s.photo ? <img src={s.photo} alt={s.name} className="w-full h-full object-cover" /> : <span className="text-[10px] font-bold text-slate-400">{s.name?.[0] || 'S'}</span>}
+                      </div>
+                    </td>
+                    <td className="p-3">
+                      <div className="font-semibold">{s.name}</div>
+                      <div className="text-[10px] text-slate-400">{s.id} | {s.phoneNo || 'N/A'}</div>
+                    </td>
+                    <td className="p-3">{s.nidBr || 'N/A'}</td>
+                    <td className="p-3">{s.batch}</td>
+                    <td className="p-3">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        s.status === 'Approved' ? 'bg-emerald-100 text-emerald-800' :
+                        s.status === 'Completed' ? 'bg-blue-100 text-blue-800' :
+                        'bg-amber-100 text-amber-800'
+                      }`}>{s.status}</span>
+                    </td>
+                    <td className="p-3">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        s.grade === 'Competent' || s.grade === 'A+' || s.grade === 'A-' ? 'bg-teal-100 text-teal-800' : 'bg-slate-100 text-slate-800'
+                      }`}>{s.grade}
+                      </span>
+                      <button onClick={() => { setGradingStudent(s); setGradeValue(s.grade); }} className="ml-2 px-2 py-0.5 bg-teal-600 hover:bg-teal-700 text-white rounded text-[10px] font-bold transition">Grade</button>
+                    </td>
+                    <td className="p-3 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <button onClick={() => setEditingStudent(s)} className="px-2.5 py-1 text-[10px] bg-sky-500 hover:bg-sky-600 text-white rounded font-bold transition">Edit</button>
+                        <button onClick={() => handleDeleteStudent(s.id)} className="px-2.5 py-1 text-[10px] bg-rose-500 hover:bg-rose-600 text-white rounded font-bold transition">Delete</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {filteredStudents.length === 0 && (
+                  <tr><td colSpan="8" className="text-center py-12 text-slate-400">No students found for {myTrade}</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Grading Panel (sidebar) */}
+          {gradingStudent && (
+            <div className="glass-panel p-6 rounded-2xl border border-teal-500/25 animate-fadeIn max-w-md">
               <h3 className="font-bold text-lg mb-4">Update Assessment</h3>
               <p className="text-sm mb-2 text-slate-500">Student: <strong className="text-slate-800 dark:text-slate-200">{gradingStudent.name}</strong></p>
               <form onSubmit={handleGradeSubmit} className="space-y-4">
                 <div>
                   <label className="text-xs font-bold text-slate-400 block mb-1">Competency Mark</label>
-                  <select
-                    value={gradeValue}
-                    onChange={(e) => setGradeValue(e.target.value)}
-                    className="w-full px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border"
-                  >
+                  <select value={gradeValue} onChange={(e) => setGradeValue(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border">
                     <option value="Competent">Competent (C)</option>
                     <option value="Not Yet Competent">Not Yet Competent (NYC)</option>
                     <option value="A+">A+ (90%+)</option>
@@ -1241,17 +1462,241 @@ export function PortalTeacher({ students }) {
                 </div>
                 <div className="flex gap-2">
                   <button type="submit" className="flex-1 py-2 bg-teal-600 text-white rounded-xl font-bold hover:bg-teal-700">Save</button>
-                  <button type="button" onClick={() => setGradingStudent(null)} className="px-4 py-2 bg-slate-250 text-slate-700 rounded-xl">Cancel</button>
+                  <button type="button" onClick={() => setGradingStudent(null)} className="px-4 py-2 bg-slate-200 dark:bg-slate-700 rounded-xl font-bold">Cancel</button>
                 </div>
               </form>
             </div>
-          ) : (
-            <div className="glass-panel p-6 rounded-2xl text-center py-12 text-slate-400">
-              Select a student to edit CBT/A competency parameters.
+          )}
+
+          {/* Edit / Add Student Modal */}
+          {editingStudent && (
+            <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="glass-panel max-w-3xl w-full max-h-[85vh] overflow-y-auto p-6 rounded-3xl border border-teal-500/20 shadow-2xl relative">
+                <h3 className="text-xl font-extrabold mb-6">{editingStudent === 'new' ? 'Add New Student' : 'Edit Student Full Record'}</h3>
+                <form onSubmit={editingStudent === 'new' ? handleAddStudent : handleUpdateStudent} className="space-y-6">
+
+                  {/* Section 1: Institutional */}
+                  <div className="space-y-3">
+                    <div className="border-l-4 border-teal-500 pl-3">
+                      <h4 className="font-extrabold text-slate-850 dark:text-white text-base">Institutional Information</h4>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs font-bold block mb-1">Trade *</label>
+                        <input type="text" value={myTrade} disabled className="w-full px-4 py-2 bg-slate-200 dark:bg-slate-850 border rounded-xl text-sm opacity-70 cursor-not-allowed" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold block mb-1">Batch *</label>
+                        <input name="batch" type="text" defaultValue={editingStudent === 'new' ? '' : editingStudent.batch} required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 2: Personal */}
+                  <div className="space-y-3">
+                    <div className="border-l-4 border-teal-500 pl-3">
+                      <h4 className="font-extrabold text-slate-850 dark:text-white text-base">Personal Information</h4>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs font-bold block mb-1">Name (English) *</label>
+                        <input name="name" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.name || editingStudent.nameEnglishBlock || '')} required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm uppercase" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold block mb-1">Name (Bangla)</label>
+                        <input name="nameBangla" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.nameBangla || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold block mb-1">Father's Name (English)</label>
+                        <input name="fatherNameEnglish" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.fatherNameEnglish || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold block mb-1">Father's Name (Bangla)</label>
+                        <input name="fatherNameBangla" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.fatherNameBangla || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold block mb-1">Mother's Name (English)</label>
+                        <input name="motherNameEnglish" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.motherNameEnglish || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold block mb-1">Mother's Name (Bangla)</label>
+                        <input name="motherNameBangla" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.motherNameBangla || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold block mb-1">DOB</label>
+                        <input name="dob" type="date" defaultValue={editingStudent === 'new' ? '' : (editingStudent.dob || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold block mb-1">Gender</label>
+                        <select name="gender" defaultValue={editingStudent === 'new' ? 'Male' : (editingStudent.gender || 'Male')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-850 border rounded-xl text-sm">
+                          <option value="Male">Male</option>
+                          <option value="Female">Female</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold block mb-1">Religion</label>
+                        <select name="religion" defaultValue={editingStudent === 'new' ? 'Islam' : (editingStudent.religion || 'Islam')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-850 border rounded-xl text-sm">
+                          <option value="Islam">Islam</option>
+                          <option value="Hinduism">Hinduism</option>
+                          <option value="Buddhism">Buddhism</option>
+                          <option value="Christianity">Christianity</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold block mb-1">Nationality</label>
+                        <input name="nationality" type="text" defaultValue={editingStudent === 'new' ? 'Bangladeshi' : (editingStudent.nationality || 'Bangladeshi')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold block mb-1">Blood Group</label>
+                        <select name="bloodGroup" defaultValue={editingStudent === 'new' ? 'O+' : (editingStudent.bloodGroup || 'O+')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-850 border rounded-xl text-sm">
+                          <option value="A+">A+</option>
+                          <option value="A-">A-</option>
+                          <option value="B+">B+</option>
+                          <option value="B-">B-</option>
+                          <option value="O+">O+</option>
+                          <option value="O-">O-</option>
+                          <option value="AB+">AB+</option>
+                          <option value="AB-">AB-</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold block mb-1">NID/BR Number</label>
+                        <input name="nidBr" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.nidBr || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold block mb-1">Phone No</label>
+                        <input name="phoneNo" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.phoneNo || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold block mb-1">Guardian Phone No</label>
+                        <input name="guardianPhoneNo" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.guardianPhoneNo || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 3: Permanent Address */}
+                  <div className="space-y-3">
+                    <div className="border-l-4 border-teal-500 pl-3">
+                      <h4 className="font-extrabold text-slate-850 dark:text-white text-base">Permanent Address</h4>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div><label className="text-xs font-bold block mb-1">Holding No</label><input name="permHoldingNo" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.permHoldingNo || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                      <div><label className="text-xs font-bold block mb-1">Village / City</label><input name="permVillCity" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.permVillCity || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                      <div><label className="text-xs font-bold block mb-1">Post Office</label><input name="permPost" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.permPost || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                      <div><label className="text-xs font-bold block mb-1">Thana</label><input name="permThana" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.permThana || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                      <div className="md:col-span-2"><label className="text-xs font-bold block mb-1">District</label><input name="permDistrict" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.permDistrict || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                    </div>
+                  </div>
+
+                  {/* Section 4: Present Address */}
+                  <div className="space-y-3">
+                    <div className="border-l-4 border-teal-500 pl-3">
+                      <h4 className="font-extrabold text-slate-850 dark:text-white text-base">Present Address</h4>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div><label className="text-xs font-bold block mb-1">Holding No</label><input name="presHoldingNo" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.presHoldingNo || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                      <div><label className="text-xs font-bold block mb-1">Village / City</label><input name="presVillCity" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.presVillCity || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                      <div><label className="text-xs font-bold block mb-1">Post Office</label><input name="presPost" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.presPost || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                      <div><label className="text-xs font-bold block mb-1">Thana</label><input name="presThana" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.presThana || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                      <div className="md:col-span-2"><label className="text-xs font-bold block mb-1">District</label><input name="presDistrict" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.presDistrict || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                    </div>
+                  </div>
+
+                  {/* Section 5: Education */}
+                  <div className="space-y-3">
+                    <div className="border-l-4 border-teal-500 pl-3">
+                      <h4 className="font-extrabold text-slate-850 dark:text-white text-base">Educational Qualification</h4>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs font-bold block mb-1">Exam Name</label>
+                        <select name="eduExamName" defaultValue={editingStudent === 'new' ? 'SSC' : (editingStudent.eduExamName || 'SSC')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-850 border rounded-xl text-sm">
+                          <option value="SSC">SSC</option>
+                          <option value="HSC">HSC</option>
+                          <option value="Graduate">Graduate</option>
+                          <option value="Post Graduate">Post Graduate</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold block mb-1">Division/Class</label>
+                        <select name="eduDivision" defaultValue={editingStudent === 'new' ? '1st' : (editingStudent.eduDivision || '1st')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-850 border rounded-xl text-sm">
+                          <option value="1st">1st Division</option>
+                          <option value="2nd">2nd Division</option>
+                          <option value="3rd">3rd Division</option>
+                        </select>
+                      </div>
+                      <div><label className="text-xs font-bold block mb-1">GPA / Marks</label><input name="eduGpa" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.eduGpa || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                      <div><label className="text-xs font-bold block mb-1">Passing Year</label><input name="eduPassingYear" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.eduPassingYear || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                      <div className="md:col-span-2"><label className="text-xs font-bold block mb-1">Board / University</label><input name="eduBoardUniv" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.eduBoardUniv || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                    </div>
+                  </div>
+
+                  {/* Section 6: Experience */}
+                  <div className="space-y-3">
+                    <div className="border-l-4 border-teal-500 pl-3">
+                      <h4 className="font-extrabold text-slate-850 dark:text-white text-base">Professional Experience</h4>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div><label className="text-xs font-bold block mb-1">Organization</label><input name="expName" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.expName || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                      <div><label className="text-xs font-bold block mb-1">Designation</label><input name="expDesignation" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.expDesignation || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                      <div><label className="text-xs font-bold block mb-1">Responsibilities</label><input name="expResponsibility" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.expResponsibility || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                      <div><label className="text-xs font-bold block mb-1">Duration</label><input name="expTimePeriod" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.expTimePeriod || '')} placeholder="e.g. 2 years" className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                    </div>
+                  </div>
+
+                  {/* Section 7: Status & Grade */}
+                  <div className="space-y-3">
+                    <div className="border-l-4 border-teal-500 pl-3">
+                      <h4 className="font-extrabold text-slate-850 dark:text-white text-base">Status & Grade</h4>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs font-bold block mb-1">Enrollment Status *</label>
+                        <select name="status" defaultValue={editingStudent === 'new' ? 'Pending' : (editingStudent.status || 'Pending')} required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-850 border rounded-xl text-sm">
+                          <option value="Pending">Pending</option>
+                          <option value="Approved">Approved</option>
+                          <option value="Completed">Completed</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold block mb-1">CBT Grade *</label>
+                        <input name="grade" type="text" defaultValue={editingStudent === 'new' ? 'N/A' : (editingStudent.grade || 'N/A')} required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Photo & Signature Preview */}
+                  {editingStudent !== 'new' && (editingStudent.photo || editingStudent.signature) && (
+                    <div className="space-y-3">
+                      <div className="border-l-4 border-teal-500 pl-3">
+                        <h4 className="font-extrabold text-slate-850 dark:text-white text-base">Uploaded Images</h4>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {editingStudent.photo && (
+                          <div><label className="text-xs font-bold block mb-1">Photo</label><img src={editingStudent.photo} alt="Student photo" className="w-24 h-24 object-cover rounded-xl border" /></div>
+                        )}
+                        {editingStudent.signature && (
+                          <div><label className="text-xs font-bold block mb-1">Signature</label><img src={editingStudent.signature} alt="Signature" className="w-32 h-12 object-contain rounded-xl border bg-white" /></div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 pt-4 border-t border-slate-200 dark:border-slate-800">
+                    <button type="submit" className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl transition">
+                      {editingStudent === 'new' ? 'Add Student' : 'Save All Changes'}
+                    </button>
+                    <button type="button" onClick={() => { setEditingStudent(null); setGradingStudent(null); }} className="px-6 py-2.5 bg-slate-200 dark:bg-slate-800 rounded-xl transition font-bold">Cancel</button>
+                  </div>
+                </form>
+              </div>
             </div>
           )}
         </div>
-      </div>
+      )}
     </div>
   );
 }
