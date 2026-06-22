@@ -89,6 +89,7 @@ export function PortalAdmin({ students }) {
   // Edit states
   const [editingStudent, setEditingStudent] = useState(null);
   const [editingTeacher, setEditingTeacher] = useState(null);
+  const ADMIN_EMAILS = ['anirban.pttc@gmail.com'];
 
   // Monitor Firebase Auth changes
   useEffect(() => {
@@ -97,6 +98,8 @@ export function PortalAdmin({ students }) {
     });
     return unsubscribe;
   }, []);
+
+  const isAdmin = adminUser && ADMIN_EMAILS.includes(adminUser.email);
 
   // Auth Handlers
   const handleLogin = async (e) => {
@@ -369,7 +372,29 @@ export function PortalAdmin({ students }) {
   });
 
   // RENDER AUTHENTICATION GATES
-  if (!adminUser) {
+  if (!adminUser || !isAdmin) {
+    // If user is logged in but not authorized
+    if (adminUser && !isAdmin) {
+      return (
+        <div className="max-w-md mx-auto my-12 animate-fadeIn">
+          <div className="glass-panel p-8 rounded-3xl border border-rose-500/20 shadow-2xl relative overflow-hidden text-center">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 mx-auto rounded-2xl bg-rose-500/10 text-rose-600 flex items-center justify-center mb-4">
+                <Sliders className="w-8 h-8" />
+              </div>
+              <h3 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">Access Denied</h3>
+              <p className="text-xs text-slate-500 mt-2">
+                You are logged in as <strong>{adminUser.email}</strong> but this email is not authorized for the Admin Portal.
+              </p>
+            </div>
+            <button onClick={handleLogout} className="w-full py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl transition shadow">
+              Sign Out
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="max-w-md mx-auto my-12 animate-fadeIn">
         <div className="glass-panel p-8 rounded-3xl border border-teal-500/20 shadow-2xl relative overflow-hidden">
