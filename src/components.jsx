@@ -1115,28 +1115,6 @@ export function PortalTeacher({ students }) {
     return matchBatch && matchStatus && matchSearch;
   });
 
-  const handleAddStudent = async (e) => {
-    e.preventDefault();
-    const fd = new FormData(e.target);
-    const maxNum = students.reduce((max, s) => {
-      const parts = s.id?.split('-');
-      if (parts && parts.length === 2) {
-        const num = parseInt(parts[1], 10);
-        return !isNaN(num) && num > max ? num : max;
-      }
-      return max;
-    }, 0);
-    const tradeCode = myTrade.substring(0, 2).toUpperCase();
-    const id = `STU${tradeCode}-${String(maxNum + 1).padStart(4, '0')}`;
-    try {
-      const data = Object.fromEntries(fd.entries());
-      await setDoc(doc(db, 'students', id), { ...data, id, trade: myTrade, date: new Date().toISOString().split('T')[0] });
-      setEditingStudent(null);
-    } catch (err) {
-      console.error('Error adding student:', err);
-    }
-  };
-
   const handleUpdateStudent = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
@@ -1383,12 +1361,6 @@ export function PortalTeacher({ students }) {
               <button onClick={exportToPDF} className="px-4 py-2 text-xs bg-rose-600 hover:bg-rose-700 text-white rounded-lg flex items-center gap-1 font-bold shadow">
                 <FileText className="w-4 h-4" /> PDF
               </button>
-              <button
-                onClick={() => setEditingStudent('new')}
-                className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs transition shadow flex items-center gap-2"
-              >
-                <UserPlus className="w-4 h-4" /> Add New
-              </button>
             </div>
           </div>
 
@@ -1497,8 +1469,8 @@ export function PortalTeacher({ students }) {
           {editingStudent && (
             <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
               <div className="glass-panel max-w-3xl w-full max-h-[85vh] overflow-y-auto p-6 rounded-3xl border border-teal-500/20 shadow-2xl relative">
-                <h3 className="text-xl font-extrabold mb-6">{editingStudent === 'new' ? 'Add New Student' : 'Edit Student Full Record'}</h3>
-                <form onSubmit={editingStudent === 'new' ? handleAddStudent : handleUpdateStudent} className="space-y-6">
+                <h3 className="text-xl font-extrabold mb-6">Edit Student Full Record</h3>
+                <form onSubmit={handleUpdateStudent} className="space-y-6">
 
                   {/* Section 1: Institutional */}
                   <div className="space-y-3">
@@ -1512,7 +1484,7 @@ export function PortalTeacher({ students }) {
                       </div>
                       <div>
                         <label className="text-xs font-bold block mb-1">Batch *</label>
-                        <input name="batch" type="text" defaultValue={editingStudent === 'new' ? '' : editingStudent.batch} required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                        <input name="batch" type="text" defaultValue={editingStudent.batch} required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
                       </div>
                     </div>
                   </div>
@@ -1525,35 +1497,35 @@ export function PortalTeacher({ students }) {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="text-xs font-bold block mb-1">Name (English) *</label>
-                        <input name="name" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.name || editingStudent.nameEnglishBlock || '')} required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm uppercase" />
+                        <input name="name" type="text" defaultValue={(editingStudent.name || editingStudent.nameEnglishBlock || '')} required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm uppercase" />
                       </div>
                       <div>
                         <label className="text-xs font-bold block mb-1">Name (Bangla)</label>
-                        <input name="nameBangla" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.nameBangla || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                        <input name="nameBangla" type="text" defaultValue={(editingStudent.nameBangla || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
                       </div>
                       <div>
                         <label className="text-xs font-bold block mb-1">Father's Name (English)</label>
-                        <input name="fatherNameEnglish" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.fatherNameEnglish || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                        <input name="fatherNameEnglish" type="text" defaultValue={(editingStudent.fatherNameEnglish || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
                       </div>
                       <div>
                         <label className="text-xs font-bold block mb-1">Father's Name (Bangla)</label>
-                        <input name="fatherNameBangla" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.fatherNameBangla || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                        <input name="fatherNameBangla" type="text" defaultValue={(editingStudent.fatherNameBangla || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
                       </div>
                       <div>
                         <label className="text-xs font-bold block mb-1">Mother's Name (English)</label>
-                        <input name="motherNameEnglish" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.motherNameEnglish || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                        <input name="motherNameEnglish" type="text" defaultValue={(editingStudent.motherNameEnglish || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
                       </div>
                       <div>
                         <label className="text-xs font-bold block mb-1">Mother's Name (Bangla)</label>
-                        <input name="motherNameBangla" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.motherNameBangla || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                        <input name="motherNameBangla" type="text" defaultValue={(editingStudent.motherNameBangla || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
                       </div>
                       <div>
                         <label className="text-xs font-bold block mb-1">DOB</label>
-                        <input name="dob" type="date" defaultValue={editingStudent === 'new' ? '' : (editingStudent.dob || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                        <input name="dob" type="date" defaultValue={(editingStudent.dob || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
                       </div>
                       <div>
                         <label className="text-xs font-bold block mb-1">Gender</label>
-                        <select name="gender" defaultValue={editingStudent === 'new' ? 'Male' : (editingStudent.gender || 'Male')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-850 border rounded-xl text-sm">
+                        <select name="gender" defaultValue={(editingStudent.gender || 'Male')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-850 border rounded-xl text-sm">
                           <option value="Male">Male</option>
                           <option value="Female">Female</option>
                           <option value="Other">Other</option>
@@ -1561,7 +1533,7 @@ export function PortalTeacher({ students }) {
                       </div>
                       <div>
                         <label className="text-xs font-bold block mb-1">Religion</label>
-                        <select name="religion" defaultValue={editingStudent === 'new' ? 'Islam' : (editingStudent.religion || 'Islam')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-850 border rounded-xl text-sm">
+                        <select name="religion" defaultValue={(editingStudent.religion || 'Islam')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-850 border rounded-xl text-sm">
                           <option value="Islam">Islam</option>
                           <option value="Hinduism">Hinduism</option>
                           <option value="Buddhism">Buddhism</option>
@@ -1571,11 +1543,11 @@ export function PortalTeacher({ students }) {
                       </div>
                       <div>
                         <label className="text-xs font-bold block mb-1">Nationality</label>
-                        <input name="nationality" type="text" defaultValue={editingStudent === 'new' ? 'Bangladeshi' : (editingStudent.nationality || 'Bangladeshi')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                        <input name="nationality" type="text" defaultValue={(editingStudent.nationality || 'Bangladeshi')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
                       </div>
                       <div>
                         <label className="text-xs font-bold block mb-1">Blood Group</label>
-                        <select name="bloodGroup" defaultValue={editingStudent === 'new' ? 'O+' : (editingStudent.bloodGroup || 'O+')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-850 border rounded-xl text-sm">
+                        <select name="bloodGroup" defaultValue={(editingStudent.bloodGroup || 'O+')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-850 border rounded-xl text-sm">
                           <option value="A+">A+</option>
                           <option value="A-">A-</option>
                           <option value="B+">B+</option>
@@ -1588,15 +1560,15 @@ export function PortalTeacher({ students }) {
                       </div>
                       <div>
                         <label className="text-xs font-bold block mb-1">NID/BR Number</label>
-                        <input name="nidBr" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.nidBr || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                        <input name="nidBr" type="text" defaultValue={(editingStudent.nidBr || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
                       </div>
                       <div>
                         <label className="text-xs font-bold block mb-1">Phone No</label>
-                        <input name="phoneNo" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.phoneNo || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                        <input name="phoneNo" type="text" defaultValue={(editingStudent.phoneNo || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
                       </div>
                       <div>
                         <label className="text-xs font-bold block mb-1">Guardian Phone No</label>
-                        <input name="guardianPhoneNo" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.guardianPhoneNo || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                        <input name="guardianPhoneNo" type="text" defaultValue={(editingStudent.guardianPhoneNo || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
                       </div>
                     </div>
                   </div>
@@ -1607,11 +1579,11 @@ export function PortalTeacher({ students }) {
                       <h4 className="font-extrabold text-slate-850 dark:text-white text-base">Permanent Address</h4>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div><label className="text-xs font-bold block mb-1">Holding No</label><input name="permHoldingNo" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.permHoldingNo || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
-                      <div><label className="text-xs font-bold block mb-1">Village / City</label><input name="permVillCity" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.permVillCity || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
-                      <div><label className="text-xs font-bold block mb-1">Post Office</label><input name="permPost" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.permPost || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
-                      <div><label className="text-xs font-bold block mb-1">Thana</label><input name="permThana" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.permThana || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
-                      <div className="md:col-span-2"><label className="text-xs font-bold block mb-1">District</label><input name="permDistrict" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.permDistrict || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                      <div><label className="text-xs font-bold block mb-1">Holding No</label><input name="permHoldingNo" type="text" defaultValue={(editingStudent.permHoldingNo || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                      <div><label className="text-xs font-bold block mb-1">Village / City</label><input name="permVillCity" type="text" defaultValue={(editingStudent.permVillCity || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                      <div><label className="text-xs font-bold block mb-1">Post Office</label><input name="permPost" type="text" defaultValue={(editingStudent.permPost || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                      <div><label className="text-xs font-bold block mb-1">Thana</label><input name="permThana" type="text" defaultValue={(editingStudent.permThana || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                      <div className="md:col-span-2"><label className="text-xs font-bold block mb-1">District</label><input name="permDistrict" type="text" defaultValue={(editingStudent.permDistrict || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
                     </div>
                   </div>
 
@@ -1621,11 +1593,11 @@ export function PortalTeacher({ students }) {
                       <h4 className="font-extrabold text-slate-850 dark:text-white text-base">Present Address</h4>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div><label className="text-xs font-bold block mb-1">Holding No</label><input name="presHoldingNo" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.presHoldingNo || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
-                      <div><label className="text-xs font-bold block mb-1">Village / City</label><input name="presVillCity" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.presVillCity || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
-                      <div><label className="text-xs font-bold block mb-1">Post Office</label><input name="presPost" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.presPost || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
-                      <div><label className="text-xs font-bold block mb-1">Thana</label><input name="presThana" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.presThana || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
-                      <div className="md:col-span-2"><label className="text-xs font-bold block mb-1">District</label><input name="presDistrict" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.presDistrict || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                      <div><label className="text-xs font-bold block mb-1">Holding No</label><input name="presHoldingNo" type="text" defaultValue={(editingStudent.presHoldingNo || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                      <div><label className="text-xs font-bold block mb-1">Village / City</label><input name="presVillCity" type="text" defaultValue={(editingStudent.presVillCity || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                      <div><label className="text-xs font-bold block mb-1">Post Office</label><input name="presPost" type="text" defaultValue={(editingStudent.presPost || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                      <div><label className="text-xs font-bold block mb-1">Thana</label><input name="presThana" type="text" defaultValue={(editingStudent.presThana || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                      <div className="md:col-span-2"><label className="text-xs font-bold block mb-1">District</label><input name="presDistrict" type="text" defaultValue={(editingStudent.presDistrict || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
                     </div>
                   </div>
 
@@ -1637,7 +1609,7 @@ export function PortalTeacher({ students }) {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="text-xs font-bold block mb-1">Exam Name</label>
-                        <select name="eduExamName" defaultValue={editingStudent === 'new' ? 'SSC' : (editingStudent.eduExamName || 'SSC')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-850 border rounded-xl text-sm">
+                        <select name="eduExamName" defaultValue={(editingStudent.eduExamName || 'SSC')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-850 border rounded-xl text-sm">
                           <option value="SSC">SSC</option>
                           <option value="HSC">HSC</option>
                           <option value="Graduate">Graduate</option>
@@ -1647,15 +1619,15 @@ export function PortalTeacher({ students }) {
                       </div>
                       <div>
                         <label className="text-xs font-bold block mb-1">Division/Class</label>
-                        <select name="eduDivision" defaultValue={editingStudent === 'new' ? '1st' : (editingStudent.eduDivision || '1st')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-850 border rounded-xl text-sm">
+                        <select name="eduDivision" defaultValue={(editingStudent.eduDivision || '1st')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-850 border rounded-xl text-sm">
                           <option value="1st">1st Division</option>
                           <option value="2nd">2nd Division</option>
                           <option value="3rd">3rd Division</option>
                         </select>
                       </div>
-                      <div><label className="text-xs font-bold block mb-1">GPA / Marks</label><input name="eduGpa" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.eduGpa || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
-                      <div><label className="text-xs font-bold block mb-1">Passing Year</label><input name="eduPassingYear" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.eduPassingYear || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
-                      <div className="md:col-span-2"><label className="text-xs font-bold block mb-1">Board / University</label><input name="eduBoardUniv" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.eduBoardUniv || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                      <div><label className="text-xs font-bold block mb-1">GPA / Marks</label><input name="eduGpa" type="text" defaultValue={(editingStudent.eduGpa || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                      <div><label className="text-xs font-bold block mb-1">Passing Year</label><input name="eduPassingYear" type="text" defaultValue={(editingStudent.eduPassingYear || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                      <div className="md:col-span-2"><label className="text-xs font-bold block mb-1">Board / University</label><input name="eduBoardUniv" type="text" defaultValue={(editingStudent.eduBoardUniv || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
                     </div>
                   </div>
 
@@ -1665,10 +1637,10 @@ export function PortalTeacher({ students }) {
                       <h4 className="font-extrabold text-slate-850 dark:text-white text-base">Professional Experience</h4>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div><label className="text-xs font-bold block mb-1">Organization</label><input name="expName" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.expName || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
-                      <div><label className="text-xs font-bold block mb-1">Designation</label><input name="expDesignation" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.expDesignation || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
-                      <div><label className="text-xs font-bold block mb-1">Responsibilities</label><input name="expResponsibility" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.expResponsibility || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
-                      <div><label className="text-xs font-bold block mb-1">Duration</label><input name="expTimePeriod" type="text" defaultValue={editingStudent === 'new' ? '' : (editingStudent.expTimePeriod || '')} placeholder="e.g. 2 years" className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                      <div><label className="text-xs font-bold block mb-1">Organization</label><input name="expName" type="text" defaultValue={(editingStudent.expName || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                      <div><label className="text-xs font-bold block mb-1">Designation</label><input name="expDesignation" type="text" defaultValue={(editingStudent.expDesignation || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                      <div><label className="text-xs font-bold block mb-1">Responsibilities</label><input name="expResponsibility" type="text" defaultValue={(editingStudent.expResponsibility || '')} className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
+                      <div><label className="text-xs font-bold block mb-1">Duration</label><input name="expTimePeriod" type="text" defaultValue={(editingStudent.expTimePeriod || '')} placeholder="e.g. 2 years" className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" /></div>
                     </div>
                   </div>
 
@@ -1680,7 +1652,7 @@ export function PortalTeacher({ students }) {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="text-xs font-bold block mb-1">Enrollment Status *</label>
-                        <select name="status" defaultValue={editingStudent === 'new' ? 'Pending' : (editingStudent.status || 'Pending')} required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-850 border rounded-xl text-sm">
+                        <select name="status" defaultValue={(editingStudent.status || 'Pending')} required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-850 border rounded-xl text-sm">
                           <option value="Pending">Pending</option>
                           <option value="Approved">Approved</option>
                           <option value="Completed">Completed</option>
@@ -1688,13 +1660,13 @@ export function PortalTeacher({ students }) {
                       </div>
                       <div>
                         <label className="text-xs font-bold block mb-1">CBT Grade *</label>
-                        <input name="grade" type="text" defaultValue={editingStudent === 'new' ? 'N/A' : (editingStudent.grade || 'N/A')} required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
+                        <input name="grade" type="text" defaultValue={(editingStudent.grade || 'N/A')} required className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border rounded-xl text-sm" />
                       </div>
                     </div>
                   </div>
 
                   {/* Photo & Signature Preview */}
-                  {editingStudent !== 'new' && (editingStudent.photo || editingStudent.signature) && (
+                  {(editingStudent.photo || editingStudent.signature) && (
                     <div className="space-y-3">
                       <div className="border-l-4 border-teal-500 pl-3">
                         <h4 className="font-extrabold text-slate-850 dark:text-white text-base">Uploaded Images</h4>
@@ -1712,7 +1684,7 @@ export function PortalTeacher({ students }) {
 
                   <div className="flex gap-2 pt-4 border-t border-slate-200 dark:border-slate-800">
                     <button type="submit" className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl transition">
-                      {editingStudent === 'new' ? 'Add Student' : 'Save All Changes'}
+                      Save All Changes
                     </button>
                     <button type="button" onClick={() => { setEditingStudent(null); setGradingStudent(null); }} className="px-6 py-2.5 bg-slate-200 dark:bg-slate-800 rounded-xl transition font-bold">Cancel</button>
                   </div>
@@ -2223,7 +2195,7 @@ export function VideoTutorials() {
   const videos = [
     { title: "Viva exam Driving License।। Traffic Sign", trade: "Automotive Mechanics", url: "https://www.youtube.com/embed/j-Uix4W3sDY?list=PLe-_6Kx3kbJYZShCQ6rISA5D4oWzsOxM-" },
     { title: "What is IP Address? | Networking Basic Class - 01 | IT Support Level-3 (Bangla)", trade: "IT Support", url: "https://www.youtube.com/embed/TELxFICZNsQ" },
-    { title: "BTEB CBT/A Exam Prep Guidelines", trade: "All Trades", url: "https://www.youtube.com/embed/dQw4w9WgXcQ" }
+    { title: "NSDA CBT/A Exam Prep Guidelines", trade: "All Trades", url: "https://www.youtube.com/embed/dQw4w9WgXcQ" }
   ];
 
   return (

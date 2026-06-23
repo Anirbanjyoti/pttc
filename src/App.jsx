@@ -420,7 +420,7 @@ export default function App() {
             &copy; 2026 Paikgacha Technical Training Center. All rights reserved.
           </div>
           <div className="mt-4 sm:mt-0 flex gap-4 justify-center">
-            <span className="hover:text-teal-600 cursor-pointer">BTEB Affiliation</span>
+            <span className="hover:text-teal-600 cursor-pointer">NSDA Affiliation</span>
             <span>&bull;</span>
             <span className="hover:text-teal-600 cursor-pointer">Privacy Guidelines</span>
           </div>
